@@ -1,0 +1,63 @@
+.participant-list {
+  padding: var(--space-4);
+  border-bottom: var(--border-width-default) solid var(--color-border-subtle);
+}
+.participant-list__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-3);
+}
+.participant-list__items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.participant-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  animation: participantIn var(--duration-standard) var(--ease-decelerate);
+}
+@keyframes participantIn {
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.participant-row__avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+.participant-row__status-dot {
+  position: absolute;
+  bottom: -1px;
+  right: -1px;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  border: 1.5px solid var(--color-surface-1);
+}
+.participant-row__status-dot--connected    { background-color: var(--color-success); }
+.participant-row__status-dot--reconnecting {
+  background-color: var(--color-accent);
+  animation: dotPulse 1.4s ease-in-out infinite;
+}
+.participant-row__info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.participant-row__name {
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.participant-row__badges {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.participant-row__focus-icon {
+  color: var(--color-accent);
+}

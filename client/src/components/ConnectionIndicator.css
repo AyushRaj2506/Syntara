@@ -1,0 +1,26 @@
+.conn-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.conn-indicator__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+}
+.conn-indicator--connected    .conn-indicator__dot { background-color: var(--color-success); }
+.conn-indicator--reconnecting .conn-indicator__dot {
+  background-color: var(--color-accent);
+  animation: dotPulse 1.4s ease-in-out infinite;
+}
+.conn-indicator--disconnected .conn-indicator__dot { background-color: var(--color-danger); }
+
+.conn-indicator--connected    .conn-indicator__label { color: var(--color-text-tertiary); }
+.conn-indicator--reconnecting .conn-indicator__label { color: var(--color-accent); }
+.conn-indicator--disconnected .conn-indicator__label { color: var(--color-danger); }
+
+@keyframes dotPulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
