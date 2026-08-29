@@ -1,0 +1,128 @@
+.whiteboard-toolbar {
+  position: absolute;
+  bottom: var(--space-6);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-lg);
+  z-index: var(--z-elevated);
+}
+
+.wb-tool-group {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.wb-divider {
+  width: 1px;
+  height: 18px;
+  background-color: var(--color-border-subtle);
+  margin: 0 2px;
+}
+
+.wb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--duration-micro) var(--ease-standard);
+}
+
+.wb-btn:hover {
+  color: var(--color-text-primary);
+  background-color: var(--color-surface-2);
+}
+
+.wb-btn--active {
+  color: var(--color-accent);
+  background-color: var(--color-accent-muted);
+}
+
+.wb-btn--danger:hover {
+  color: var(--color-danger);
+  background-color: rgba(224, 108, 99, 0.1);
+}
+
+.wb-dot {
+  background-color: currentColor;
+  border-radius: var(--radius-full);
+  display: block;
+}
+.wb-dot--s { width: 4px; height: 4px; }
+.wb-dot--m { width: 8px; height: 8px; }
+.wb-dot--l { width: 12px; height: 12px; }
+
+.wb-color-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-full);
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform var(--duration-micro) var(--ease-standard);
+}
+
+.wb-color-swatch:hover {
+  transform: scale(1.15);
+}
+
+.wb-color-swatch--selected {
+  border-color: var(--color-text-primary);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.2);
+  transform: scale(1.15);
+}
+
+@media (max-width: 767px) {
+  .whiteboard-toolbar {
+    bottom: var(--space-4);
+    max-width: 90vw;
+    overflow-x: auto;
+  }
+}
+
+/* Inline clear confirmation */
+.wb-confirm-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  animation: wb-confirm-in 0.15s var(--ease-standard);
+}
+
+@keyframes wb-confirm-in {
+  from { opacity: 0; transform: scale(0.9); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.wb-confirm-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-danger, #e06c63);
+  white-space: nowrap;
+  padding: 0 4px;
+}
+
+.wb-btn--confirm-yes {
+  color: var(--color-success, #6db78b);
+}
+
+.wb-btn--confirm-yes:hover {
+  color: var(--color-success, #6db78b);
+  background-color: rgba(109, 183, 139, 0.15);
+}
+
+.wb-btn--confirm-no {
+  color: var(--color-text-tertiary);
+}
+
+.wb-btn--confirm-no:hover {
+  color: var(--color-text-primary);
+  background-color: var(--color-surface-2);
+}

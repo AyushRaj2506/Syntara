@@ -1,0 +1,154 @@
+.goal-list {
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.goal-list__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.goal-list__items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.goal-list__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-4) 0;
+  text-align: center;
+}
+
+.goal-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  transition: background-color var(--duration-micro) var(--ease-standard);
+  position: relative;
+}
+
+.goal-item:hover {
+  background-color: var(--color-surface-2);
+}
+
+.goal-checkbox {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 1.5px solid var(--color-border-default);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  color: #0A0804;
+  background-color: transparent;
+  transition: all var(--duration-standard) var(--ease-standard);
+}
+
+.goal-checkbox:hover {
+  border-color: var(--color-accent);
+}
+
+.goal-checkbox--checked {
+  background-color: var(--color-accent);
+  border-color: var(--color-accent);
+  transform: scale(1);
+  animation: checkboxPop var(--duration-standard) var(--ease-standard);
+}
+
+@keyframes checkboxPop {
+  0% { transform: scale(0.8); }
+  100% { transform: scale(1); }
+}
+
+.goal-item__text {
+  flex: 1;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  word-break: break-word;
+  transition: color var(--duration-standard) var(--ease-standard);
+  position: relative;
+}
+
+.goal-item--completed .goal-item__text {
+  color: var(--color-text-tertiary);
+  text-decoration: line-through;
+}
+
+.goal-item__delete {
+  opacity: 0;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 3px;
+  transition: all var(--duration-micro) var(--ease-standard);
+}
+
+.goal-item:hover .goal-item__delete {
+  opacity: 1;
+}
+
+.goal-item__delete:hover {
+  color: var(--color-danger);
+  background-color: rgba(224, 108, 99, 0.1);
+}
+
+.goal-list__form {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.goal-list__input {
+  flex: 1;
+  background-color: var(--color-surface-2);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-3);
+  font-size: 13px;
+  color: var(--color-text-primary);
+  height: 32px;
+  transition: border-color var(--duration-standard) var(--ease-standard);
+}
+
+.goal-list__input:focus {
+  border-color: var(--color-accent);
+  outline: none;
+}
+
+.goal-list__add-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-2);
+  border: 1px solid var(--color-border-default);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--duration-micro) var(--ease-standard);
+}
+
+.goal-list__add-btn:hover:not(:disabled) {
+  color: var(--color-text-primary);
+  border-color: var(--color-border-strong);
+}
+
+.goal-list__add-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}

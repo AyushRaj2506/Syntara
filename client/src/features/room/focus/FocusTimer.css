@@ -1,0 +1,127 @@
+.focus-timer {
+  padding: var(--space-4);
+  border-bottom: var(--border-width-default) solid var(--color-border-subtle);
+}
+
+.focus-card {
+  background-color: var(--color-surface-2);
+  border: var(--border-width-default) solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  transition: all var(--duration-standard) var(--ease-standard);
+}
+
+.focus-card--active {
+  border-color: rgba(232, 163, 61, 0.4);
+  background-color: var(--color-surface-elevated);
+  box-shadow: 0 0 20px rgba(232, 163, 61, 0.08);
+}
+
+.focus-card--completed {
+  border-color: rgba(111, 191, 139, 0.4);
+  background-color: rgba(111, 191, 139, 0.08);
+  align-items: center;
+  text-align: center;
+  padding: var(--space-6) var(--space-4);
+}
+
+.focus-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.focus-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-accent);
+  background-color: var(--color-accent-muted);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+}
+
+.break-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-success);
+  background-color: rgba(111, 191, 139, 0.15);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+}
+
+.focus-flame {
+  animation: flamePulse 1.8s infinite ease-in-out;
+}
+
+@keyframes flamePulse {
+  0%, 100% { opacity: 0.8; transform: scale(0.95); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+
+.focus-timer__digits {
+  font-family: 'Courier New', monospace;
+  font-weight: 600;
+  text-align: center;
+  letter-spacing: 0.05em;
+  font-variant-numeric: tabular-nums;
+  margin: var(--space-1) 0;
+}
+
+.focus-card__controls {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-3);
+  margin-top: var(--space-1);
+}
+
+.focus-ctrl-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  background-color: var(--color-surface-2);
+  border: 1px solid var(--color-border-default);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--duration-micro) var(--ease-standard);
+}
+
+.focus-ctrl-btn:hover {
+  color: var(--color-text-primary);
+  border-color: var(--color-border-strong);
+  background-color: var(--color-surface-elevated);
+}
+
+.focus-ctrl-btn--danger:hover {
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+  background-color: rgba(224, 108, 99, 0.1);
+}
+
+.focus-start-btn {
+  margin-top: var(--space-2);
+}
+
+.focus-card__waiting {
+  padding: var(--space-2) 0;
+  text-align: center;
+}
+
+.focus-timer--fullscreen {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8);
+}
+.focus-timer--fullscreen .focus-card {
+  width: 100%;
+  max-width: 400px;
+}

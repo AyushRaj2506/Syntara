@@ -1,0 +1,7 @@
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: var(--border-width-default) solid var(--glass-border);
+  border-radius: var(--radius-lg);
+}
