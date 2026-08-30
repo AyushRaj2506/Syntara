@@ -231,12 +231,13 @@ export function CodeScratchpad({ initialCodeState, actions }) {
     });
   };
 
+  const [confirmingClear, setConfirmingClear] = useState(false);
+
   const handleClear = () => {
-    if (window.confirm('Clear all code in the scratchpad for everyone?')) {
-      setCode('');
-      setOutput(null);
-      actions.clearCode?.();
-    }
+    setCode('');
+    setOutput(null);
+    setConfirmingClear(false);
+    actions.clearCode?.();
   };
 
   /**
@@ -327,16 +328,41 @@ export function CodeScratchpad({ initialCodeState, actions }) {
             {copied ? <Check size={14} className="text-success" /> : <Copy size={14} />}
             <span>{copied ? 'Copied' : 'Copy'}</span>
           </button>
-          <button
-            type="button"
-            className="code-action-btn code-action-btn--danger"
-            onClick={handleClear}
-            title="Clear code"
-            aria-label="Clear code"
-          >
-            <Trash2 size={14} />
-            <span>Clear</span>
-          </button>
+          {confirmingClear ? (
+            <div className="code-confirm-group" role="group" aria-label="Confirm clear code">
+              <span className="code-confirm-label text-caption">Clear code?</span>
+              <button
+                type="button"
+                className="code-action-btn code-action-btn--confirm-yes"
+                onClick={handleClear}
+                title="Yes, clear all code"
+                aria-label="Yes, clear code"
+              >
+                <Check size={13} className="text-success" />
+                <span>Yes</span>
+              </button>
+              <button
+                type="button"
+                className="code-action-btn"
+                onClick={() => setConfirmingClear(false)}
+                title="Cancel"
+                aria-label="Cancel clear"
+              >
+                <span>Cancel</span>
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="code-action-btn code-action-btn--danger"
+              onClick={() => setConfirmingClear(true)}
+              title="Clear code"
+              aria-label="Clear code"
+            >
+              <Trash2 size={14} />
+              <span>Clear</span>
+            </button>
+          )}
         </div>
       </div>
 

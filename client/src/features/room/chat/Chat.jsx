@@ -61,7 +61,6 @@ export function Chat({ messages, meId, participants, actions, onFocus, roomId, i
   const [atBottom, setAtBottom] = useState(true);
   const [unreadNewCount, setUnreadNewCount] = useState(0);
   const [selectedFile, setSelectedFile] = useState(null);
-  const [isSendingFile, setIsSendingFile] = useState(false);
   const [transferError, setTransferError] = useState('');
 
   const listRef = useRef(null);
@@ -158,34 +157,45 @@ export function Chat({ messages, meId, participants, actions, onFocus, roomId, i
     const trimmed = text.trim();
     if (!trimmed && !selectedFile) return;
 
-    const messageId = crypto.randomUUID();
-    let filePayload = undefined;
-
     if (selectedFile) {
-      setIsSendingFile(true);
-      setTransferError('');
-      try {
-        const transferResult = await sendFile(selectedFile, trimmed);
-        filePayload = {
-          fileId: transferResult.transferId,
-          fileName: selectedFile.name,
-          fileSize: selectedFile.size,
-          fileType: selectedFile.type || 'application/octet-stream',
-          url: transferResult.url ? transferResult.url.replace(SERVER_URL, '') : undefined,
-          fullUrl: transferResult.url,
-        };
-      } catch (err) {
-        setTransferError('File transfer failed. Please retry.');
-        setIsSendingFile(false);
-        return;
-      }
-      setIsSendingFile(false);
+      const fileToSend = selectedFile;
+      const captionToSend = trimmed;
+      // Clear composer state immediately so the user can continue chatting
       setSelectedFile(null);
-    }
+      setText('');
+      if (inputRef.current) {
+        inputRef.current.style.height = 'auto';
+      }
+      setTransferError('');
 
-    actions.sendChat(trimmed || undefined, filePayload, messageId);
-    setText('');
-    scrollToBottom();
+      // Background transfer task
+      (async () => {
+        try {
+          const messageId = crypto.randomUUID();
+          const transferResult = await sendFile(fileToSend, captionToSend);
+          const filePayload = {
+            fileId: transferResult.transferId,
+            fileName: fileToSend.name,
+            fileSize: fileToSend.size,
+            fileType: fileToSend.type || 'application/octet-stream',
+            url: transferResult.url ? transferResult.url.replace(SERVER_URL, '') : undefined,
+            fullUrl: transferResult.url,
+          };
+          actions.sendChat(captionToSend || undefined, filePayload, messageId);
+          scrollToBottom();
+        } catch (err) {
+          setTransferError(`Failed to send "${fileToSend.name}". Please retry.`);
+        }
+      })();
+    } else {
+      const messageId = crypto.randomUUID();
+      actions.sendChat(trimmed, undefined, messageId);
+      setText('');
+      if (inputRef.current) {
+        inputRef.current.style.height = 'auto';
+      }
+      scrollToBottom();
+    }
   }, [text, selectedFile, actions, sendFile]);
 
   const handleKeyDown = (e) => {
@@ -295,7 +305,6 @@ export function Chat({ messages, meId, participants, actions, onFocus, roomId, i
               type="button"
               className="chat__file-preview-remove"
               onClick={removeSelectedFile}
-              disabled={isSendingFile}
               aria-label="Remove attachment"
             >
               <X size={14} />
@@ -347,7 +356,6 @@ export function Chat({ messages, meId, participants, actions, onFocus, roomId, i
             type="button"
             className="chat__attach-trigger"
             onClick={() => fileInputRef.current?.click()}
-            disabled={isSendingFile}
             title="Attach file (PDF, images, videos, docs)"
             aria-label="Attach file"
           >
@@ -385,14 +393,10 @@ export function Chat({ messages, meId, participants, actions, onFocus, roomId, i
             type="button"
             className="chat__send-btn"
             onClick={send}
-            disabled={(!text.trim() && !selectedFile) || isSendingFile}
+            disabled={!text.trim() && !selectedFile}
             aria-label="Send message"
           >
-            {isSendingFile ? (
-              <Loader2 size={16} className="chat__spinner" />
-            ) : (
-              <Send size={16} aria-hidden="true" />
-            )}
+            <Send size={16} aria-hidden="true" />
           </button>
         </div>
 

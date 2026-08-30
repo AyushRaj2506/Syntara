@@ -40,39 +40,40 @@
 }
 
 [data-theme="light"] {
-  /* ---- Colors (Light Mode) ---- */
-  --color-bg:               #F8F9FA;
+  /* ---- Colors (Light Mode - Deliberate warm editorial palette) ---- */
+  --color-bg:               #F9F8F5;
   --color-surface-1:        #FFFFFF;
-  --color-surface-2:        #F0F2F5;
+  --color-surface-2:        #F2EFEB;
   --color-surface-elevated: #FFFFFF;
 
-  --color-border-subtle:    rgba(0, 0, 0, 0.07);
-  --color-border-default:   rgba(0, 0, 0, 0.13);
-  --color-border-strong:    rgba(0, 0, 0, 0.24);
+  --color-border-subtle:    rgba(40, 32, 24, 0.07);
+  --color-border-default:   rgba(40, 32, 24, 0.13);
+  --color-border-strong:    rgba(40, 32, 24, 0.22);
 
-  --color-text-primary:     #121518;
-  --color-text-secondary:   #545B64;
-  --color-text-tertiary:    #828B96;
+  --color-text-primary:     #171513;
+  --color-text-secondary:   #59534C;
+  --color-text-tertiary:    #8C847B;
 
-  --color-accent:           #D9822B;
-  --color-accent-strong:    #C47120;
-  --color-accent-muted:     rgba(217, 130, 43, 0.12);
+  --color-accent:           #D47A1E;
+  --color-accent-strong:    #BC6510;
+  --color-accent-muted:     rgba(212, 122, 30, 0.12);
 
-  --color-success:          #2A8550;
-  --color-danger:           #D9383A;
-  --color-warning:          #D9822B;
+  --color-success:          #2E8555;
+  --color-danger:           #D63D3B;
+  --color-warning:          #D47A1E;
 
   /* ---- Glass ---- */
-  --glass-bg:               rgba(255, 255, 255, 0.85);
-  --glass-border:           rgba(0, 0, 0, 0.09);
+  --glass-bg:               rgba(255, 255, 255, 0.88);
+  --glass-border:           rgba(40, 32, 24, 0.09);
   --glass-blur:             16px;
 
   /* ---- Shadows ---- */
-  --shadow-sm:              0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md:              0 4px 12px rgba(0, 0, 0, 0.08);
-  --shadow-lg:              0 12px 32px rgba(0, 0, 0, 0.12);
-  --shadow-offset-brutalist: 4px 4px 0 rgba(217, 130, 43, 0.9);
+  --shadow-sm:              0 1px 3px rgba(40, 32, 24, 0.05);
+  --shadow-md:              0 4px 14px rgba(40, 32, 24, 0.08);
+  --shadow-lg:              0 12px 32px rgba(40, 32, 24, 0.12);
+  --shadow-offset-brutalist: 4px 4px 0 rgba(212, 122, 30, 0.9);
 }
+
 
 :root {
   /* ---- Spacing (4px base) ---- */

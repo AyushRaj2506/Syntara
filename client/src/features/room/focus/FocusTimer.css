@@ -15,10 +15,23 @@
 }
 
 .focus-card--active {
-  border-color: rgba(232, 163, 61, 0.4);
+  border-color: rgba(232, 163, 61, 0.45);
   background-color: var(--color-surface-elevated);
-  box-shadow: 0 0 20px rgba(232, 163, 61, 0.08);
+  box-shadow: 0 0 24px rgba(232, 163, 61, 0.12), inset 0 0 12px rgba(232, 163, 61, 0.04);
+  animation: focusPulse 4s ease-in-out infinite alternate;
 }
+
+@keyframes focusPulse {
+  0% {
+    border-color: rgba(232, 163, 61, 0.35);
+    box-shadow: 0 0 16px rgba(232, 163, 61, 0.08);
+  }
+  100% {
+    border-color: rgba(232, 163, 61, 0.6);
+    box-shadow: 0 0 28px rgba(232, 163, 61, 0.16);
+  }
+}
+
 
 .focus-card--completed {
   border-color: rgba(111, 191, 139, 0.4);
