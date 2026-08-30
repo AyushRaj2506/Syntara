@@ -33,7 +33,7 @@ export function Button({
       {...rest}
     >
       {loading && <Loader2 className="btn__spinner" aria-hidden="true" />}
-      <span className={loading ? 'btn__label--loading' : ''}>{children}</span>
+      <span className={`btn__content ${loading ? 'btn__label--loading' : ''}`}>{children}</span>
     </button>
   );
 }

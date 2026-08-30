@@ -11,9 +11,10 @@ const PALETTE = [
  * @returns {string} hex color
  */
 function colorFromId(id) {
+  const str = String(id || 'syntara');
   let hash = 0;
-  for (let i = 0; i < id.length; i++) {
-    hash = ((hash << 5) - hash) + id.charCodeAt(i);
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
     hash |= 0;
   }
   return PALETTE[Math.abs(hash) % PALETTE.length];
@@ -23,10 +24,15 @@ function colorFromId(id) {
  * @param {string} name
  * @returns {string} up to 2-char initials
  */
-function initials(name) {
-  const parts = name.trim().split(/\s+/);
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-  return name.slice(0, 2).toUpperCase();
+function initials(name, single = false) {
+  const str = String(name || 'Guest').trim();
+  if (!str) return 'G';
+  if (single) return str.charAt(0).toUpperCase();
+  const parts = str.split(/\s+/);
+  if (parts.length >= 2 && isNaN(Number(parts[1]))) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return str.charAt(0).toUpperCase();
 }
 
 /**
@@ -34,11 +40,12 @@ function initials(name) {
  * @param {{
  *   name: string,
  *   participantId: string,
- *   size?: 'sm'|'md'|'lg',
+ *   size?: 'xs'|'sm'|'md'|'lg',
+ *   single?: boolean,
  *   className?: string,
  * }} props
  */
-export function Avatar({ name, participantId, size = 'md', className = '' }) {
+export function Avatar({ name, participantId, size = 'md', single = false, className = '' }) {
   const bg = colorFromId(participantId);
   return (
     <div
@@ -47,7 +54,7 @@ export function Avatar({ name, participantId, size = 'md', className = '' }) {
       aria-label={name}
       title={name}
     >
-      {initials(name)}
+      {initials(name, single || size === 'xs')}
     </div>
   );
 }

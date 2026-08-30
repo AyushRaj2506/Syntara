@@ -1,13 +1,40 @@
+/* ============================================================
+   CREATE ROOM MODAL STYLES — Syntara Redesign
+   ============================================================ */
+
 .create-room-form {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-5);
 }
 
+.create-room-field-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.create-room-field-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.required-star {
+  color: var(--color-accent);
+}
+
+/* Room Mode Selector Cards */
 .create-room-type-group {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+}
+
+.create-room-type-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .create-room-type-cards {
@@ -20,31 +47,46 @@
   display: flex;
   align-items: flex-start;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-3);
+  padding: var(--space-4) var(--space-3);
   background-color: var(--color-surface-2);
-  border: 2px solid var(--color-border-default);
+  border: 1.5px solid var(--color-border-default);
   border-radius: var(--radius-md);
   cursor: pointer;
   text-align: left;
-  transition: all var(--duration-standard) var(--ease-standard);
+  transition: all var(--duration-fast) var(--ease-standard);
+  position: relative;
 }
 
 .create-room-type-card:hover {
   border-color: var(--color-border-strong);
   background-color: var(--color-surface-elevated);
+  transform: translateY(-1px);
 }
 
 .create-room-type-card--active {
-  border-color: var(--color-accent-strong);
+  border-color: var(--color-accent);
   background-color: var(--color-surface-elevated);
-  box-shadow: 4px 4px 0 rgba(217, 130, 43, 0.5);
+  box-shadow: 0 0 0 1px var(--color-accent), var(--shadow-tactile-accent);
   transform: translateY(-2px);
 }
 
-.create-room-type-card__icon {
+.create-room-type-card__icon-wrap {
   color: var(--color-accent);
-  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background-color: var(--color-accent-muted);
   flex-shrink: 0;
+  transition: transform var(--duration-fast) var(--ease-spring);
+}
+
+.create-room-type-card--active .create-room-type-card__icon-wrap {
+  transform: scale(1.1);
+  background-color: var(--color-accent);
+  color: #0A0804;
 }
 
 .create-room-type-card__text {
@@ -53,18 +95,35 @@
   gap: 2px;
 }
 
+.create-room-type-card__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .create-room-type-card__title {
-  font-weight: 600;
+  font-weight: 700;
   font-size: 13px;
   color: var(--color-text-primary);
+}
+
+.mode-selected-pill {
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--color-accent);
+  background: var(--color-accent-muted);
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
 }
 
 .create-room-type-card__desc {
   font-size: 11px;
   color: var(--color-text-secondary);
-  line-height: 1.35;
+  line-height: 1.4;
 }
 
+/* Study specific options smooth expand */
 .create-room-study-fields {
   display: flex;
   flex-direction: column;
@@ -73,101 +132,204 @@
   opacity: 0;
   overflow: hidden;
   pointer-events: none;
-  transition: max-height var(--duration-standard) var(--ease-standard),
-              opacity var(--duration-standard) var(--ease-standard),
-              margin var(--duration-standard) var(--ease-standard);
+  transition: max-height var(--duration-normal) var(--ease-standard),
+              opacity var(--duration-normal) var(--ease-standard);
   margin: 0;
 }
 
 .create-room-study-fields--open {
-  max-height: 200px;
+  max-height: 240px;
   opacity: 1;
   overflow: visible;
   pointer-events: auto;
 }
 
+/* Error Notification */
 .create-room-form__error {
-
   color: var(--color-danger);
-  padding: var(--space-2) var(--space-4);
-  background-color: rgba(224, 108, 99, 0.08);
+  padding: var(--space-3) var(--space-4);
+  background-color: rgba(230, 103, 91, 0.1);
   border-radius: var(--radius-sm);
-  border: 1px solid rgba(224, 108, 99, 0.2);
+  border: 1px solid rgba(230, 103, 91, 0.3);
+  font-weight: 500;
 }
 
-/* ---- Success state ---- */
-.create-room-success {
+/* Submit Action Wrap */
+.create-room-submit-wrap {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-5);
-  text-align: center;
-  padding-top: var(--space-4);
+  gap: var(--space-2);
+  margin-top: var(--space-2);
 }
 
-.create-room-success__badge-row {
+.create-room-submit-btn {
+  height: 48px !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: var(--shadow-tactile-accent) !important;
+}
+
+.create-room-footnote {
+  color: var(--color-text-tertiary);
+}
+
+/* ============================================================
+   SUCCESS STATE: ACCESS PASS / TICKET
+   ============================================================ */
+
+.create-room-success {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-2) 0;
+}
+
+.create-room-success__ticket {
+  background-color: var(--color-surface-2);
+  border: 1.5px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-4);
+  box-shadow: var(--shadow-sm);
+  position: relative;
+}
+
+.create-room-success__ticket-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.ticket-badge-wrap {
   display: flex;
   align-items: center;
   gap: var(--space-2);
 }
 
-.create-room-success__mode-badge {
+.ticket-badge {
   background-color: var(--color-accent-muted);
   color: var(--color-accent);
+  padding: 2px 8px;
   border-radius: var(--radius-full);
-  padding: 2px 10px;
 }
 
-.create-room-success__code-block {
-  display: flex;
+.ticket-live-pill {
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-3);
-  background-color: var(--color-surface-2);
-  border: var(--border-width-accent) solid var(--color-border-strong);
-  border-radius: var(--radius-md);
-  padding: var(--space-4) var(--space-6);
-}
-
-.create-room-success__code {
-  font-size: 32px;
+  gap: 4px;
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.12em;
-  font-family: 'Courier New', monospace;
-  color: var(--color-text-primary);
-  font-variant-numeric: tabular-nums;
+  color: var(--color-success);
 }
 
-.create-room-success__copy-btn {
+.create-room-success__title {
+  color: var(--color-text-primary);
+}
+
+.create-room-success__subject {
+  color: var(--color-text-secondary);
+}
+
+/* Code Voucher Box */
+.create-room-success__code-voucher {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  background-color: var(--color-bg);
+  border: 2px dashed var(--color-accent);
+  border-radius: var(--radius-md);
+  padding: var(--space-5) var(--space-8);
+  width: 100%;
+}
+
+.voucher-code-label {
+  color: var(--color-accent);
+  font-size: 10px;
+}
+
+.voucher-code-digits {
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: var(--color-text-primary);
+}
+
+.voucher-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: var(--color-surface-elevated);
+  border: 1.5px solid var(--color-border-strong);
+  border-radius: var(--radius-full);
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--duration-fast) var(--ease-standard);
+}
+
+.voucher-copy-btn:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  transform: translateY(-1px);
+}
+
+.voucher-copy-btn--copied {
+  background-color: var(--color-success);
+  border-color: var(--color-success);
+  color: #FFFFFF;
+}
+
+.voucher-copy-btn--copied:hover {
+  background-color: var(--color-success);
+  border-color: var(--color-success);
+  color: #FFFFFF;
+}
+
+.create-room-success__perks {
   display: flex;
   align-items: center;
-  gap: var(--space-1);
-  color: var(--color-text-secondary);
-  font-size: 13px;
-  font-family: var(--font-ui);
-  cursor: pointer;
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--color-border-default);
-  background-color: var(--color-surface-elevated);
-  transition:
-    color var(--duration-micro) var(--ease-standard),
-    border-color var(--duration-micro) var(--ease-standard);
+  justify-content: center;
+  gap: var(--space-6);
+  color: var(--color-text-tertiary);
+  margin-top: var(--space-2);
 }
 
-.create-room-success__copy-btn:hover {
-  color: var(--color-text-primary);
-  border-color: var(--color-border-strong);
+.perk-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
 }
 
 .create-room-success__actions {
   display: flex;
   gap: var(--space-3);
-  width: 100%;
-  justify-content: center;
+  justify-content: flex-end;
 }
 
-@media (max-width: 480px) {
+.enter-room-btn {
+  flex: 1;
+  box-shadow: var(--shadow-tactile-accent) !important;
+}
+
+@media (max-width: 520px) {
   .create-room-type-cards {
     grid-template-columns: 1fr;
+  }
+  .create-room-success__code-voucher {
+    padding: var(--space-4);
+  }
+  .voucher-code-digits {
+    font-size: 26px;
   }
 }

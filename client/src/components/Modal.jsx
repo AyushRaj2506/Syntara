@@ -1,26 +1,59 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { X } from 'lucide-react';
 import { IconButton } from './IconButton';
 import './Modal.css';
 
 /**
- * Glass-surface modal with focus trap, ESC close, and backdrop-click close.
+ * Premium glass-surface modal with focus trap, ESC close, backdrop-click close, and animated exit.
  * @param {{
  *   open: boolean,
  *   onClose: () => void,
  *   title?: string,
+ *   subtitle?: string,
  *   children: React.ReactNode,
  *   size?: 'sm'|'md'|'lg',
  *   closeOnBackdrop?: boolean,
  * }} props
  */
-export function Modal({ open, onClose, title, children, size = 'md', closeOnBackdrop = true }) {
+export function Modal({
+  open,
+  onClose,
+  title,
+  subtitle,
+  children,
+  size = 'md',
+  closeOnBackdrop = true
+}) {
   const panelRef = useRef(null);
   const lastFocusedRef = useRef(null);
   const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
-  // Stable Focus trap
+  const [isRendered, setIsRendered] = useState(open);
+  const [isClosing, setIsClosing] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setIsRendered(true);
+      setIsClosing(false);
+    } else if (isRendered) {
+      setIsClosing(true);
+      const timer = setTimeout(() => {
+        setIsRendered(false);
+        setIsClosing(false);
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [open, isRendered]);
+
+  const handleClose = useCallback(() => {
+    if (isClosing) return;
+    onCloseRef.current?.();
+  }, [isClosing]);
+
+  // Focus trap
   const trapFocus = useCallback((e) => {
     if (!panelRef.current) return;
     const focusable = panelRef.current.querySelectorAll(
@@ -44,15 +77,14 @@ export function Modal({ open, onClose, title, children, size = 'md', closeOnBack
       }
     }
     if (e.key === 'Escape') {
-      onCloseRef.current?.();
+      handleClose();
     }
-  }, []);
+  }, [handleClose]);
 
   useEffect(() => {
     if (open) {
       lastFocusedRef.current = document.activeElement;
-      
-      // Auto-focus first input or button only when modal initially opens, if focus is outside modal
+
       requestAnimationFrame(() => {
         if (panelRef.current && !panelRef.current.contains(document.activeElement)) {
           const firstInput = panelRef.current.querySelector('input:not(:disabled), textarea:not(:disabled)');
@@ -78,17 +110,17 @@ export function Modal({ open, onClose, title, children, size = 'md', closeOnBack
     };
   }, [open, trapFocus]);
 
-  if (!open) return null;
+  if (!isRendered) return null;
 
   return (
     <div
-      className="modal-backdrop"
-      onClick={closeOnBackdrop ? onClose : undefined}
+      className={`modal-backdrop ${isClosing ? 'modal-backdrop--closing' : ''}`}
+      onClick={closeOnBackdrop ? handleClose : undefined}
       aria-hidden="true"
     >
       <div
         ref={panelRef}
-        className={`modal-panel modal-panel--${size}`}
+        className={`modal-panel modal-panel--${size} ${isClosing ? 'modal-panel--closing' : ''}`}
         role="dialog"
         aria-modal="true"
         aria-label={title}
@@ -96,8 +128,11 @@ export function Modal({ open, onClose, title, children, size = 'md', closeOnBack
       >
         {title && (
           <div className="modal-panel__header">
-            <h2 className="text-display-md modal-panel__title">{title}</h2>
-            <IconButton aria-label="Close dialog" onClick={onClose} size="sm">
+            <div className="modal-panel__title-group">
+              <h2 className="text-display-md modal-panel__title">{title}</h2>
+              {subtitle && <p className="modal-panel__subtitle text-body-sm">{subtitle}</p>}
+            </div>
+            <IconButton aria-label="Close dialog" onClick={handleClose} size="sm">
               <X size={18} />
             </IconButton>
           </div>

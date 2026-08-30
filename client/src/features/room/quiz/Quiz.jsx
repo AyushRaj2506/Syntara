@@ -13,7 +13,7 @@ import './Quiz.css';
  *   participants: object[],
  * }} props
  */
-export function Quiz({ quizState, meId, isHost, actions, participants }) {
+export function Quiz({ quizState, meId: _meId, isHost, actions, participants: _participants }) {
   const [selectedOption, setSelectedOption] = useState(null);
   const [timeLeft, setTimeLeft] = useState(0);
 

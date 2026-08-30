@@ -50,7 +50,11 @@ export function useWebRTCFileTransfer({
 
   // Safe ref for onFileReceived callback
   const onFileReceivedRef = useRef(onFileReceived);
-  onFileReceivedRef.current = onFileReceived;
+  useEffect(() => {
+    onFileReceivedRef.current = onFileReceived;
+  }, [onFileReceived]);
+
+  const handleIncomingDataRef = useRef(null);
 
   // Initialize or teardown peer connection for a participant
   const createPeerConnection = useCallback((targetParticipantId, isInitiator = false) => {
@@ -84,7 +88,7 @@ export function useWebRTCFileTransfer({
       };
 
       dc.onmessage = (event) => {
-        handleIncomingData(event.data, targetParticipantId);
+        handleIncomingDataRef.current?.(event.data, targetParticipantId);
       };
     };
 
@@ -219,6 +223,7 @@ export function useWebRTCFileTransfer({
       }
     }
   };
+  handleIncomingDataRef.current = handleIncomingData;
 
   // Socket signaling listener
   useEffect(() => {
