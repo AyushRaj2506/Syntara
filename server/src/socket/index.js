@@ -7,6 +7,8 @@ const { registerFocusHandlers } = require('./handlers/focus');
 const { registerGoalsHandlers } = require('./handlers/goals');
 const { registerQuizHandlers } = require('./handlers/quiz');
 const { registerCodeHandlers } = require('./handlers/code');
+const { registerWebRTCHandlers } = require('./handlers/webrtc');
+
 
 /** @type {Map<string, number>} IP → room creation count in current window */
 const ipRoomCreationMap = new Map();
@@ -63,8 +65,10 @@ function initSocketServer(io) {
     registerGoalsHandlers(io, socket);
     registerQuizHandlers(io, socket);
     registerCodeHandlers(io, socket);
+    registerWebRTCHandlers(io, socket);
 
     socket.on('disconnect', (reason) => {
+
       console.log(`[socket] Disconnected: ${socket.id} — ${reason}`);
     });
   });

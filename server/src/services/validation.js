@@ -51,6 +51,7 @@ const joinRoomSchema = z.object({
 });
 
 const chatSendSchema = z.object({
+  id: z.string().optional(),
   text: z.string().min(1).max(2000).optional(),
   file: z.object({
     fileId: z.string(),

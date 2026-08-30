@@ -56,7 +56,7 @@ function registerChatHandlers(io, socket) {
 
     /** @type {import('../../types/index.js').ChatMessage} */
     const message = {
-      id: uuidv4(),
+      id: result.data.id || uuidv4(),
       type: 'user',
       participantId,
       displayName: participant.displayName,

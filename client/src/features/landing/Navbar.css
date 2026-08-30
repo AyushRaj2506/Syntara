@@ -7,10 +7,10 @@
   justify-content: space-between;
   padding: 0 var(--space-6);
   height: 60px;
-  border-bottom: var(--border-width-default) solid var(--color-border-subtle);
-  background-color: rgba(8,10,12,0.85);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  border-bottom: var(--border-width-default) solid var(--glass-border);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
 }
 
 .navbar__brand {

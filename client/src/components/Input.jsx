@@ -1,4 +1,4 @@
-import { forwardRef } from 'react';
+import { forwardRef, memo } from 'react';
 import './Input.css';
 
 /**
@@ -10,7 +10,7 @@ import './Input.css';
  *   [key: string]: any
  * }} props
  */
-export const Input = forwardRef(function Input({ label, error, hint, className = '', id, ...rest }, ref) {
+export const Input = memo(forwardRef(function Input({ label, error, hint, className = '', id, ...rest }, ref) {
   return (
     <div className={`input-field ${className}`}>
       {label && <label className="input-field__label" htmlFor={id}>{label}</label>}
@@ -24,4 +24,5 @@ export const Input = forwardRef(function Input({ label, error, hint, className =
       {hint && !error && <span className="input-field__hint">{hint}</span>}
     </div>
   );
-});
+}));
+

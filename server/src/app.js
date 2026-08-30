@@ -49,19 +49,31 @@ const storage = multer.diskStorage({
   },
 });
 
-// No arbitrary file size limit — files are limited only by available disk space.
-// Large files are streamed directly to disk via diskStorage.
-const upload = multer({ storage });
+const MAX_FALLBACK_UPLOAD_BYTES = 250 * 1024 * 1024; // 250MB
+const upload = multer({
+  storage,
+  limits: { fileSize: MAX_FALLBACK_UPLOAD_BYTES },
+});
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 // Ephemeral file upload endpoint
-app.post('/api/upload', upload.single('file'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: 'No file uploaded' });
-  }
+app.post('/api/upload', (req, res) => {
+  upload.single('file')(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ error: 'File too large (max 250MB).' });
+      }
+      return res.status(400).json({ error: err.message });
+    } else if (err) {
+      return res.status(500).json({ error: 'Upload failed.' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
 
   const { roomId } = req.body;
   if (roomId) {
@@ -82,6 +94,7 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
   };
 
   res.json({ file: fileData });
+  });
 });
 
 // Serve uploaded file with streaming & download support

@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { memo, useRef } from 'react';
 import './SegmentedControl.css';
 
 /**
@@ -11,7 +11,7 @@ import './SegmentedControl.css';
  *   className?: string,
  * }} props
  */
-export function SegmentedControl({ options, value, onChange, label, className = '' }) {
+export const SegmentedControl = memo(function SegmentedControl({ options, value, onChange, label, className = '' }) {
   const groupRef = useRef(null);
 
   const handleKeyDown = (e, idx) => {
@@ -43,6 +43,7 @@ export function SegmentedControl({ options, value, onChange, label, className = 
           return (
             <button
               key={opt.value}
+              type="button"
               role="radio"
               aria-checked={selected}
               tabIndex={selected ? 0 : -1}
@@ -57,4 +58,5 @@ export function SegmentedControl({ options, value, onChange, label, className = 
       </div>
     </div>
   );
-}
+});
+

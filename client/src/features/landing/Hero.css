@@ -37,29 +37,26 @@
   gap: var(--space-6);
   max-width: 640px;
   width: 100%;
-
-  /* Entrance animation */
-  animation: heroEnter 700ms var(--ease-decelerate) both;
-}
-@keyframes heroEnter {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .hero__content { animation: none; }
 }
 
+/* Staggered entrance */
 .hero__eyebrow {
   color: var(--color-accent);
+  animation: heroFadeIn 450ms var(--ease-decelerate) both;
+  animation-delay: 50ms;
 }
 
 .hero__headline {
   color: var(--color-text-primary);
+  animation: heroFadeIn 500ms var(--ease-decelerate) both;
+  animation-delay: 150ms;
 }
 
 .hero__subtext {
   color: var(--color-text-secondary);
   max-width: 480px;
+  animation: heroFadeIn 500ms var(--ease-decelerate) both;
+  animation-delay: 250ms;
 }
 
 .hero__ctas {
@@ -67,16 +64,35 @@
   gap: var(--space-3);
   flex-wrap: wrap;
   justify-content: center;
+  animation: heroFadeIn 500ms var(--ease-decelerate) both;
+  animation-delay: 350ms;
 }
 
-/* Inline join form */
 .hero__join-form {
   position: relative;
   width: 100%;
   max-width: 380px;
   display: flex;
   align-items: center;
+  animation: heroFadeIn 500ms var(--ease-decelerate) both;
+  animation-delay: 450ms;
 }
+
+@keyframes heroFadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero__eyebrow,
+  .hero__headline,
+  .hero__subtext,
+  .hero__ctas,
+  .hero__join-form {
+    animation: none;
+  }
+}
+
 .hero__join-input {
   width: 100%;
   background-color: var(--color-surface-2);
