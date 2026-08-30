@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { Palette } from 'lucide-react';
 import { socket } from '../../../lib/socket';
 import { WhiteboardToolbar } from './WhiteboardToolbar';
 import './Whiteboard.css';
@@ -19,6 +20,7 @@ export function Whiteboard({ initialStrokes = [], participantId, actions }) {
   const [color, setColor] = useState('#E8A33D'); // Default warm amber
   const [size, setSize] = useState('M'); // 'S' | 'M' | 'L'
   const [theme, setTheme] = useState(() => document.documentElement.getAttribute('data-theme') || 'dark');
+  const [hasStrokes, setHasStrokes] = useState(() => initialStrokes.length > 0);
 
   // Track theme changes
   useEffect(() => {
@@ -46,12 +48,51 @@ export function Whiteboard({ initialStrokes = [], participantId, actions }) {
 
   const getLineWidth = useCallback((sizeVal) => {
     switch (sizeVal) {
-      case 'S': return 2;
-      case 'L': return 8;
+      case 'S':
+        return 2;
+      case 'L':
+        return 8;
       case 'M':
-      default:  return 4;
+      default:
+        return 4;
     }
   }, []);
+
+  const drawStrokeToContext = useCallback(
+    (ctx, stroke, width, height) => {
+      if (!stroke.points || stroke.points.length === 0) return;
+      ctx.save();
+      ctx.beginPath();
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      if (stroke.color === 'eraser') {
+        ctx.strokeStyle = bgColor;
+        ctx.lineWidth = getLineWidth(stroke.size) * 4;
+      } else {
+        ctx.strokeStyle = stroke.color;
+        ctx.lineWidth = getLineWidth(stroke.size);
+      }
+
+      if (stroke.points.length === 1) {
+        const pt = stroke.points[0];
+        ctx.arc(pt.x * width, pt.y * height, ctx.lineWidth / 2, 0, Math.PI * 2);
+        ctx.fillStyle = ctx.strokeStyle;
+        ctx.fill();
+      } else {
+        const first = stroke.points[0];
+        ctx.moveTo(first.x * width, first.y * height);
+
+        for (let i = 1; i < stroke.points.length; i++) {
+          const pt = stroke.points[i];
+          ctx.lineTo(pt.x * width, pt.y * height);
+        }
+        ctx.stroke();
+      }
+      ctx.restore();
+    },
+    [bgColor, getLineWidth]
+  );
 
   // Full re-render from stroke history
   const redrawCanvas = useCallback(() => {
@@ -84,40 +125,7 @@ export function Whiteboard({ initialStrokes = [], participantId, actions }) {
     Object.values(remoteInFlightRef.current).forEach((stroke) => {
       drawStrokeToContext(ctx, stroke, width, height);
     });
-  }, [bgColor, gridDotColor, getLineWidth]);
-
-  const drawStrokeToContext = (ctx, stroke, width, height) => {
-    if (!stroke.points || stroke.points.length === 0) return;
-    ctx.save();
-    ctx.beginPath();
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-
-    if (stroke.color === 'eraser') {
-      ctx.strokeStyle = bgColor;
-      ctx.lineWidth = getLineWidth(stroke.size) * 4;
-    } else {
-      ctx.strokeStyle = stroke.color;
-      ctx.lineWidth = getLineWidth(stroke.size);
-    }
-
-    if (stroke.points.length === 1) {
-      const pt = stroke.points[0];
-      ctx.arc(pt.x * width, pt.y * height, ctx.lineWidth / 2, 0, Math.PI * 2);
-      ctx.fillStyle = ctx.strokeStyle;
-      ctx.fill();
-    } else {
-      const first = stroke.points[0];
-      ctx.moveTo(first.x * width, first.y * height);
-
-      for (let i = 1; i < stroke.points.length; i++) {
-        const pt = stroke.points[i];
-        ctx.lineTo(pt.x * width, pt.y * height);
-      }
-      ctx.stroke();
-    }
-    ctx.restore();
-  };
+  }, [bgColor, gridDotColor, drawStrokeToContext]);
 
   // Immediate local segment drawing (0ms latency)
   const drawSegment = (p1, p2, strokeColor, strokeSize) => {
@@ -164,23 +172,18 @@ export function Whiteboard({ initialStrokes = [], participantId, actions }) {
     return () => ro.disconnect();
   }, [redrawCanvas]);
 
-  // Sync initial strokes on prop change — but only update when the array shrinks
-  // (a clear or undo happened in useRoom state) or it's the initial mount.
-  // We must NOT blindly overwrite strokesRef on every re-render because that
-  // would conflict with in-progress drawing and cause jitter.
   const prevStrokesLengthRef = useRef(-1);
   useEffect(() => {
     if (!initialStrokes) return;
     const prev = prevStrokesLengthRef.current;
     const next = initialStrokes.length;
-    // Always sync on first mount (prev === -1) or when count decreases (clear/undo)
     if (prev === -1 || next < prev) {
       strokesRef.current = [...initialStrokes];
+      setHasStrokes(initialStrokes.length > 0);
       redrawCanvas();
     }
     prevStrokesLengthRef.current = next;
   }, [initialStrokes, redrawCanvas]);
-
 
   // Socket event listeners
   useEffect(() => {
@@ -202,6 +205,7 @@ export function Whiteboard({ initialStrokes = [], participantId, actions }) {
           size: strokeSize,
           points,
         });
+        setHasStrokes(true);
       }
       redrawCanvas();
     };
@@ -210,6 +214,7 @@ export function Whiteboard({ initialStrokes = [], participantId, actions }) {
       strokesRef.current = [];
       remoteInFlightRef.current = {};
       undoStackRef.current = [];
+      setHasStrokes(false);
       redrawCanvas();
     };
 
@@ -219,6 +224,7 @@ export function Whiteboard({ initialStrokes = [], participantId, actions }) {
       } else {
         strokesRef.current.pop();
       }
+      setHasStrokes(strokesRef.current.length > 0);
       redrawCanvas();
     };
 
@@ -233,7 +239,7 @@ export function Whiteboard({ initialStrokes = [], participantId, actions }) {
     };
   }, [redrawCanvas]);
 
-  // Pointer Event Handlers (PointerDown, Move, Up)
+  // Pointer Event Handlers
   const getNormalizedPoint = (e) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
@@ -261,15 +267,14 @@ export function Whiteboard({ initialStrokes = [], participantId, actions }) {
     activeStrokeRef.current = newStroke;
     lastPointRef.current = pt;
     lastEmitTimeRef.current = Date.now();
+    setHasStrokes(true);
 
-    // Draw immediate single dot
     const canvas = canvasRef.current;
     if (canvas) {
       const ctx = canvas.getContext('2d');
       drawStrokeToContext(ctx, newStroke, canvas.width, canvas.height);
     }
 
-    // Initial emit
     actions.drawStroke({
       strokeId,
       points: [pt],
@@ -283,14 +288,12 @@ export function Whiteboard({ initialStrokes = [], participantId, actions }) {
     if (!activeStrokeRef.current || !lastPointRef.current) return;
     const pt = getNormalizedPoint(e);
 
-    // Fast local rendering of the single new segment (0ms lag!)
     drawSegment(lastPointRef.current, pt, activeStrokeRef.current.color, activeStrokeRef.current.size);
 
     activeStrokeRef.current.points.push(pt);
     lastPointRef.current = pt;
 
     const now = Date.now();
-    // Throttle network broadcast to ~35ms
     if (now - lastEmitTimeRef.current >= 35) {
       actions.drawStroke({
         strokeId: activeStrokeRef.current.strokeId,
@@ -311,12 +314,10 @@ export function Whiteboard({ initialStrokes = [], participantId, actions }) {
       activeStrokeRef.current.points.push(pt);
     }
 
-    // Commit stroke locally
     strokesRef.current.push(activeStrokeRef.current);
     undoStackRef.current.push(activeStrokeRef.current.strokeId);
     if (undoStackRef.current.length > 30) undoStackRef.current.shift();
 
-    // Broadcast final completed stroke
     actions.drawStroke({
       strokeId: activeStrokeRef.current.strokeId,
       points: activeStrokeRef.current.points,
@@ -327,9 +328,9 @@ export function Whiteboard({ initialStrokes = [], participantId, actions }) {
 
     activeStrokeRef.current = null;
     lastPointRef.current = null;
+    setHasStrokes(true);
   };
 
-  // Undo
   const handleUndo = () => {
     if (strokesRef.current.length === 0) return;
     const lastId = undoStackRef.current.pop();
@@ -340,14 +341,15 @@ export function Whiteboard({ initialStrokes = [], participantId, actions }) {
       const removed = strokesRef.current.pop();
       if (removed) actions.undoStroke?.(removed.strokeId);
     }
+    setHasStrokes(strokesRef.current.length > 0);
     redrawCanvas();
   };
 
-  // Clear — called only AFTER the user confirms in the toolbar inline UI
   const handleClear = () => {
     strokesRef.current = [];
     remoteInFlightRef.current = {};
     undoStackRef.current = [];
+    setHasStrokes(false);
     actions.clearBoard();
     redrawCanvas();
   };
@@ -362,6 +364,17 @@ export function Whiteboard({ initialStrokes = [], participantId, actions }) {
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
       />
+
+      {!hasStrokes && (
+        <div className="wb-empty-hint" aria-hidden="true">
+          <Palette size={26} className="text-accent wb-empty-hint__icon" />
+          <h4 className="text-body-md font-semibold text-primary">Draw together</h4>
+          <p className="text-caption text-tertiary">
+            Sketch an idea, explain a concept, or map out a solution.
+          </p>
+        </div>
+      )}
+
       <WhiteboardToolbar
         tool={tool}
         setTool={setTool}

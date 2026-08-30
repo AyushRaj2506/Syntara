@@ -77,6 +77,21 @@ function registerChatHandlers(io, socket) {
     io.to(roomId).emit('chat:message', { message });
   });
 
+  socket.on('chat:typing', (payload) => {
+    const { roomId, participantId } = socket.data ?? {};
+    if (!roomId || !participantId) return;
+    const room = roomStore.getById(roomId);
+    if (!room) return;
+    const participant = room.participants[participantId];
+    if (!participant) return;
+
+    socket.to(roomId).emit('chat:typing', {
+      participantId,
+      displayName: participant.displayName,
+      isTyping: !!payload?.isTyping,
+    });
+  });
+
   // Clean up rate limiter on disconnect
   socket.on('disconnect', () => {
     rateLimitMap.delete(socket.id);

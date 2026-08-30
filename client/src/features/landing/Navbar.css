@@ -1,79 +1,314 @@
-.navbar {
+/* ============================================================
+   NAVBAR & ANCHORED JOIN POPOVER — Syntara Redesign
+   ============================================================ */
+
+.navbar-wrapper {
   position: sticky;
   top: 0;
   z-index: var(--z-nav);
+  width: 100%;
+  padding: var(--space-3) 0;
+  transition: padding var(--duration-normal) var(--ease-standard),
+              transform var(--duration-normal) var(--ease-standard);
+  display: flex;
+  justify-content: center;
+}
+
+.navbar-wrapper--scrolled {
+  padding-top: var(--space-2);
+}
+
+.navbar-container {
+  width: min(100% - var(--container-padding) * 2, var(--container-max-width));
+  display: flex;
+  justify-content: center;
+}
+
+.navbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 var(--space-6);
-  height: 60px;
-  border-bottom: var(--border-width-default) solid var(--glass-border);
+  width: 100%;
+  height: 56px;
+  padding: 0 var(--space-4);
   background: var(--glass-bg);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1.5px solid var(--glass-border);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--duration-normal) var(--ease-standard);
+  position: relative;
 }
 
+.navbar-wrapper--scrolled .navbar {
+  box-shadow: var(--shadow-md);
+  border-color: var(--color-border-default);
+  background: var(--glass-bg-elevated);
+}
+
+/* Brand */
 .navbar__brand {
   display: flex;
   align-items: center;
   gap: var(--space-3);
   color: var(--color-text-primary);
   text-decoration: none;
-}
-.navbar__brand:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 4px;
-  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-full);
+  transition: opacity var(--duration-fast) var(--ease-standard);
 }
 
-.navbar__wordmark {
-  color: var(--color-text-primary);
-  font-family: var(--font-display);
-  letter-spacing: 0.08em;
-  font-size: 13px;
-  font-weight: 600;
+.navbar__brand:hover {
+  opacity: 0.9;
 }
 
-.navbar__actions {
+.navbar__brand-icon {
+  color: var(--color-accent);
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  justify-content: center;
+  transition: transform var(--duration-normal) var(--ease-spring);
 }
 
-.navbar__join-form {
+.navbar__brand:hover .navbar__brand-icon {
+  transform: rotate(15deg) scale(1.08);
+}
+
+.navbar__brand-text {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+}
+
+.navbar__wordmark {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--color-text-primary);
+}
+
+.navbar__badge {
+  background-color: var(--color-accent-muted);
+  color: var(--color-accent);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  border: 1px solid var(--color-accent-subtle);
+}
+
+@media (max-width: 640px) {
+  .navbar__badge {
+    display: none;
+  }
+}
+
+/* Actions Cluster */
+.navbar__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.navbar__divider {
+  width: 1px;
+  height: 20px;
+  background-color: var(--color-border-default);
+  margin: 0 var(--space-1);
+}
+
+/* Join Button Trigger & Wrapper */
+.navbar__join-wrapper {
   position: relative;
 }
-.navbar__join-input {
+
+.navbar__join-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 var(--space-4);
+  height: 36px;
+  border-radius: var(--radius-full);
   background-color: var(--color-surface-2);
-  border: var(--border-width-default) solid var(--color-border-default);
+  border: 1.5px solid var(--color-border-default);
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--duration-fast) var(--ease-standard);
+}
+
+.navbar__join-btn:hover {
+  background-color: var(--color-surface-elevated);
+  border-color: var(--color-border-strong);
+  transform: translateY(-1px);
+}
+
+.navbar__join-btn--active {
+  border-color: var(--color-accent);
+  background-color: var(--color-surface-elevated);
+  box-shadow: 0 0 0 3px var(--color-accent-muted);
+}
+
+.navbar__join-btn-icon {
+  color: var(--color-accent);
+}
+
+/* Anchored Floating Popover */
+.navbar__join-popover {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  width: 320px;
+  background: var(--glass-bg-elevated);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1.5px solid var(--glass-border-accent);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg), var(--shadow-tactile-md);
+  padding: var(--space-5);
+  z-index: var(--z-popover);
+  animation: popoverEnter 220ms var(--ease-out-expo) forwards;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+@keyframes popoverEnter {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.navbar__popover-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.navbar__popover-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.navbar__popover-title {
+  color: var(--color-text-primary);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.navbar__popover-close {
+  color: var(--color-text-tertiary);
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+
+.navbar__popover-close:hover {
+  color: var(--color-text-primary);
+  background-color: var(--color-surface-2);
+}
+
+.navbar__popover-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.navbar__popover-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.navbar__popover-input {
+  width: 100%;
+  background-color: var(--color-surface-2);
+  border: 1.5px solid var(--color-border-default);
   border-radius: var(--radius-sm);
-  padding: var(--space-1) var(--space-3);
+  padding: 0 var(--space-3);
+  height: 38px;
   font-size: 13px;
   color: var(--color-text-primary);
-  height: 32px;
-  width: 140px;
-  letter-spacing: 0.05em;
-  font-family: 'Courier New', monospace;
-  transition: border-color var(--duration-standard) var(--ease-standard);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--duration-fast) var(--ease-standard);
 }
-.navbar__join-input:focus {
+
+.navbar__popover-input:focus {
+  background-color: var(--color-surface-elevated);
   border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-muted);
   outline: none;
 }
-.navbar__join-input--error {
+
+.navbar__popover-input--error {
   border-color: var(--color-danger);
+  box-shadow: 0 0 0 3px rgba(230, 103, 91, 0.2);
 }
-.navbar__join-input::placeholder {
-  color: var(--color-text-tertiary);
-  letter-spacing: normal;
-}
-.navbar__join-error {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
+
+.navbar__popover-error {
   color: var(--color-danger);
-  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.navbar__popover-submit {
+  margin-top: 4px;
+  box-shadow: var(--shadow-tactile-accent) !important;
+}
+
+/* Primary Create Button */
+.navbar__create-btn {
+  border-radius: var(--radius-full) !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  height: 36px !important;
+  padding: 0 var(--space-4) !important;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 767px) {
+  .navbar {
+    height: 52px;
+    padding: 0 var(--space-3);
+  }
+  .navbar__create-btn {
+    font-size: 12px !important;
+    padding: 0 var(--space-3) !important;
+    height: 32px !important;
+  }
+  .navbar__join-btn span {
+    display: none;
+  }
+  .navbar__join-btn {
+    padding: 0 10px;
+    width: 34px;
+    height: 32px;
+    justify-content: center;
+  }
+
+  /* Anchored popover on mobile: center horizontally */
+  .navbar__join-popover {
+    position: fixed;
+    top: 68px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(calc(100vw - 32px), 360px);
+    right: auto;
+  }
 }

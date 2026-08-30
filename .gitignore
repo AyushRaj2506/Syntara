@@ -1,5 +1,43 @@
+# Dependencies
 node_modules/
-.env
-.DS_Store
+*/node_modules/
+
+# Production build outputs
 dist/
+*/dist/
+dist-ssr/
+*/dist-ssr/
+build/
+*/build/
+
+# Environment variables & secrets (NEVER commit secrets)
+.env
+.env.local
+.env.*.local
+*/.env
+*/.env.local
+*/.env.*.local
+
+# Server temporary files & uploads
 uploads/
+*/uploads/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

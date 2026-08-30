@@ -45,13 +45,8 @@ int main() {
 `,
 };
 
-/**
- * Singleton Pyodide worker. Lazily created and reused across runs.
- * Running Python in a Web Worker keeps the main thread responsive
- * and provides a layer of isolation (worker has no DOM access).
- */
 let pyodideWorker = null;
-const pyodideWorkerCallbacks = new Map(); // id → { resolve }
+const pyodideWorkerCallbacks = new Map();
 
 function getPyodideWorker() {
   if (pyodideWorker) return pyodideWorker;
@@ -65,29 +60,20 @@ function getPyodideWorker() {
     }
   };
   pyodideWorker.onerror = (e) => {
-    // Resolve all pending with an error
     for (const [, cb] of pyodideWorkerCallbacks) {
       cb.resolve({ error: `Worker error: ${e.message}` });
     }
     pyodideWorkerCallbacks.clear();
-    pyodideWorker = null; // reset so next call recreates
+    pyodideWorker = null;
   };
   return pyodideWorker;
 }
 
-/**
- * Run Python code in the Pyodide Web Worker.
- * Returns { stdout, stderr, exitCode } or { error }.
- * @param {string} code
- * @param {number} timeoutMs
- * @returns {Promise<{stdout?: string, stderr?: string, exitCode?: number, error?: string}>}
- */
 function runPython(code, timeoutMs = 15000) {
   return new Promise((resolve) => {
     const id = Math.random().toString(36).slice(2);
     const timer = setTimeout(() => {
       pyodideWorkerCallbacks.delete(id);
-      // Terminate and reset on timeout — a runaway script can't be stopped otherwise
       pyodideWorker?.terminate();
       pyodideWorker = null;
       resolve({ error: 'Execution timed out after 15 seconds.' });
@@ -104,11 +90,6 @@ function runPython(code, timeoutMs = 15000) {
   });
 }
 
-/**
- * Try to run C++ via the server's /api/run endpoint (which proxies to an
- * external sandbox). If the server-side runner is unavailable, returns a
- * clear error message.
- */
 async function runCpp(code) {
   try {
     const res = await fetch(`${SERVER_URL}/api/run`, {
@@ -129,23 +110,27 @@ async function runCpp(code) {
 }
 
 /**
- * @param {{\n *   initialCodeState?: { code: string, language: string },\n *   actions: object,\n * }} props
+ * @param {{
+ *   initialCodeState?: { code: string, language: string },
+ *   actions: object,
+ * }} props
  */
 export function CodeScratchpad({ initialCodeState, actions }) {
   const [language, setLanguage] = useState(() => initialCodeState?.language || 'python');
-  const [code, setCode] = useState(() => initialCodeState?.code || DEFAULT_SNIPPETS[initialCodeState?.language || 'python']);
+  const [code, setCode] = useState(
+    () => initialCodeState?.code || DEFAULT_SNIPPETS[initialCodeState?.language || 'python']
+  );
   const [copied, setCopied] = useState(false);
 
   // Run state
   const [running, setRunning] = useState(false);
-  const [output, setOutput] = useState(null); // { stdout, stderr, exitCode, error }
+  const [output, setOutput] = useState(null);
   const [outputOpen, setOutputOpen] = useState(false);
 
   const isLocalUpdateRef = useRef(false);
   const debounceRef = useRef(null);
   const textareaRef = useRef(null);
 
-  // Sync from prop changes (remote collaborator or initial server state)
   useEffect(() => {
     if (initialCodeState?.code && initialCodeState.code !== code && !isLocalUpdateRef.current) {
       setCode(initialCodeState.code);
@@ -240,11 +225,6 @@ export function CodeScratchpad({ initialCodeState, actions }) {
     actions.clearCode?.();
   };
 
-  /**
-   * Run code:
-   * - Python → Pyodide WebAssembly in a Web Worker (no server, fully sandboxed)
-   * - C++ → server proxy to external sandbox service
-   */
   const handleRun = useCallback(async () => {
     const trimmed = code.trim();
     if (!trimmed) {
@@ -280,7 +260,7 @@ export function CodeScratchpad({ initialCodeState, actions }) {
       <div className="code-scratchpad__toolbar">
         <div className="code-scratchpad__toolbar-left">
           <div className="code-scratchpad__lang-select-wrap">
-            <Code2 size={16} className="text-accent" />
+            <Code2 size={15} className="text-accent" />
             <select
               value={language}
               onChange={handleLanguageChange}
@@ -300,21 +280,20 @@ export function CodeScratchpad({ initialCodeState, actions }) {
         </div>
 
         <div className="code-scratchpad__toolbar-right">
-          {/* Run button */}
+          {/* Run button — Primary Action */}
           <button
             type="button"
             className="code-action-btn code-action-btn--run"
             onClick={handleRun}
             disabled={running}
-            title={language === 'python'
-              ? 'Run Python 3 (Pyodide WebAssembly in browser)'
-              : 'Run C++ (GCC 13.2.0 with C++20 standard)'}
+            title={
+              language === 'python'
+                ? 'Run Python 3 (Pyodide WebAssembly in browser)'
+                : 'Run C++ (GCC 13.2.0 with C++20 standard)'
+            }
             aria-label={running ? 'Running…' : 'Run code'}
           >
-            {running
-              ? <Loader2 size={14} className="code-spinner" />
-              : <Play size={14} />
-            }
+            {running ? <Loader2 size={13} className="code-spinner" /> : <Play size={13} fill="currentColor" />}
             <span>{running ? 'Running…' : 'Run'}</span>
           </button>
 
@@ -325,12 +304,13 @@ export function CodeScratchpad({ initialCodeState, actions }) {
             title="Copy code to clipboard"
             aria-label={copied ? 'Copied code' : 'Copy code'}
           >
-            {copied ? <Check size={14} className="text-success" /> : <Copy size={14} />}
+            {copied ? <Check size={13} className="text-success" /> : <Copy size={13} />}
             <span>{copied ? 'Copied' : 'Copy'}</span>
           </button>
+
           {confirmingClear ? (
             <div className="code-confirm-group" role="group" aria-label="Confirm clear code">
-              <span className="code-confirm-label text-caption">Clear code?</span>
+              <span className="code-confirm-label text-caption">Clear?</span>
               <button
                 type="button"
                 className="code-action-btn code-action-btn--confirm-yes"
@@ -338,8 +318,7 @@ export function CodeScratchpad({ initialCodeState, actions }) {
                 title="Yes, clear all code"
                 aria-label="Yes, clear code"
               >
-                <Check size={13} className="text-success" />
-                <span>Yes</span>
+                <Check size={12} className="text-success" />
               </button>
               <button
                 type="button"
@@ -348,7 +327,7 @@ export function CodeScratchpad({ initialCodeState, actions }) {
                 title="Cancel"
                 aria-label="Cancel clear"
               >
-                <span>Cancel</span>
+                Cancel
               </button>
             </div>
           ) : (
@@ -359,7 +338,7 @@ export function CodeScratchpad({ initialCodeState, actions }) {
               title="Clear code"
               aria-label="Clear code"
             >
-              <Trash2 size={14} />
+              <Trash2 size={13} />
               <span>Clear</span>
             </button>
           )}
@@ -370,7 +349,9 @@ export function CodeScratchpad({ initialCodeState, actions }) {
       <div className="code-scratchpad__editor">
         <div className="code-scratchpad__lines" aria-hidden="true">
           {lineNumbers.map((num) => (
-            <span key={num} className="code-line-number">{num}</span>
+            <span key={num} className="code-line-number">
+              {num}
+            </span>
           ))}
         </div>
         <textarea
@@ -400,7 +381,7 @@ export function CodeScratchpad({ initialCodeState, actions }) {
             <span className="code-output__header-left">
               <Terminal size={13} />
               <span className="text-label">
-                {output.error ? 'Error' : `Output  (exit ${output.exitCode ?? 0})`}
+                {output.error ? 'Error' : `Output (exit ${output.exitCode ?? 0})`}
               </span>
             </span>
             {outputOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
@@ -412,9 +393,7 @@ export function CodeScratchpad({ initialCodeState, actions }) {
                 <pre className="code-output__pre code-output__pre--err">{output.error}</pre>
               ) : (
                 <>
-                  {output.stdout && (
-                    <pre className="code-output__pre">{output.stdout}</pre>
-                  )}
+                  {output.stdout && <pre className="code-output__pre">{output.stdout}</pre>}
                   {output.stderr && (
                     <pre className="code-output__pre code-output__pre--err">{output.stderr}</pre>
                   )}

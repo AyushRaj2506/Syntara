@@ -23,13 +23,14 @@ export function GoalList({ goals = [], meId, hostId, actions }) {
   };
 
   const isHost = meId === hostId;
+  const completedCount = goals.filter((g) => g.completed).length;
 
   return (
     <div className="goal-list">
       <div className="goal-list__header">
-        <span className="text-label" style={{ color: 'var(--color-text-tertiary)' }}>Study Goals</span>
-        <span className="text-caption text-tertiary">
-          {goals.filter((g) => g.completed).length}/{goals.length}
+        <span className="text-label text-tertiary">Study Goals</span>
+        <span className="goal-list__counter text-caption font-semibold">
+          {completedCount}/{goals.length}
         </span>
       </div>
 
@@ -37,8 +38,11 @@ export function GoalList({ goals = [], meId, hostId, actions }) {
       <div className="goal-list__items" role="list">
         {goals.length === 0 ? (
           <div className="goal-list__empty">
-            <CheckSquare size={20} className="text-tertiary" />
-            <p className="text-body-sm text-tertiary">No goals yet. Add the first one.</p>
+            <CheckSquare size={16} className="text-tertiary" />
+            <div className="goal-list__empty-text">
+              <p className="text-caption font-medium text-secondary">Nothing planned yet.</p>
+              <p className="text-caption text-tertiary">Add a goal for this session.</p>
+            </div>
           </div>
         ) : (
           goals.map((goal) => {
@@ -50,11 +54,16 @@ export function GoalList({ goals = [], meId, hostId, actions }) {
                 role="listitem"
               >
                 <button
+                  type="button"
                   className={`goal-checkbox ${goal.completed ? 'goal-checkbox--checked' : ''}`}
                   onClick={() => actions.toggleGoal(goal.goalId, !goal.completed)}
-                  aria-label={goal.completed ? `Mark "${goal.text}" incomplete` : `Mark "${goal.text}" complete`}
+                  aria-label={
+                    goal.completed
+                      ? `Mark "${goal.text}" incomplete`
+                      : `Mark "${goal.text}" complete`
+                  }
                 >
-                  {goal.completed && <Check size={12} strokeWidth={2.5} />}
+                  {goal.completed && <Check size={11} strokeWidth={3} />}
                 </button>
 
                 <span
@@ -66,12 +75,13 @@ export function GoalList({ goals = [], meId, hostId, actions }) {
 
                 {canDelete && (
                   <button
+                    type="button"
                     className="goal-item__delete"
                     onClick={() => actions.deleteGoal(goal.goalId)}
                     title="Delete goal"
                     aria-label={`Delete goal: ${goal.text}`}
                   >
-                    <Trash2 size={13} />
+                    <Trash2 size={12} />
                   </button>
                 )}
               </div>
@@ -85,8 +95,8 @@ export function GoalList({ goals = [], meId, hostId, actions }) {
         <input
           ref={inputRef}
           type="text"
-          className="goal-list__input"
-          placeholder="Add a study goal…"
+          className="goal-list__input text-caption"
+          placeholder="+ Add a study goal…"
           value={newGoalText}
           maxLength={200}
           onChange={(e) => setNewGoalText(e.target.value)}
@@ -98,7 +108,7 @@ export function GoalList({ goals = [], meId, hostId, actions }) {
           disabled={!newGoalText.trim()}
           aria-label="Add goal"
         >
-          <Plus size={16} />
+          <Plus size={14} />
         </button>
       </form>
     </div>

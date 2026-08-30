@@ -26,14 +26,13 @@ export function RoomPage() {
 
   const handleJoinWithName = (e) => {
     e.preventDefault();
-    const finalName = displayName.trim() || `Guest ${Math.floor(1000 + Math.random() * 9000)}`;
+    const finalName = displayName.trim() || guestPlaceholder;
     sessionStorage.setItem('syntara:displayName', finalName);
-    setDisplayName(finalName);
-    setNameEntered(true);
+    setSubmittedName(finalName);
   };
 
   // If user hasn't set their name in this session yet, show lightweight inline modal/prompt
-  if (!nameEntered) {
+  if (!submittedName) {
     return (
       <div className="room-join-name-prompt">
         <div className="room-join-name-card glass-panel">
@@ -46,7 +45,7 @@ export function RoomPage() {
           <form onSubmit={handleJoinWithName} className="room-join-name-form">
             <Input
               label="Your name"
-              placeholder={`Guest ${Math.floor(1000 + Math.random() * 9000)}`}
+              placeholder={guestPlaceholder}
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               maxLength={24}

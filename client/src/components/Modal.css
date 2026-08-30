@@ -1,44 +1,78 @@
+/* ============================================================
+   MODAL DIALOG STYLES — Syntara Redesign
+   ============================================================ */
+
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(4, 5, 6, 0.75);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  background: rgba(9, 11, 14, 0.72);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: var(--z-modal-backdrop);
   padding: var(--space-4);
-  animation: backdropIn var(--duration-large) var(--ease-decelerate);
+  animation: backdropEnter 220ms var(--ease-decelerate) forwards;
 }
 
-@keyframes backdropIn {
+.modal-backdrop--closing {
+  animation: backdropExit 180ms var(--ease-accelerate) forwards;
+}
+
+@keyframes backdropEnter {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
 
+@keyframes backdropExit {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
 .modal-panel {
-  background: var(--glass-bg);
+  background: var(--glass-bg-elevated);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
-  border: var(--border-width-default) solid var(--glass-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
+  border: 1.5px solid var(--glass-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg), var(--shadow-tactile-md);
   z-index: var(--z-modal);
   width: 100%;
   max-height: 90dvh;
   overflow-y: auto;
-  animation: modalIn var(--duration-large) var(--ease-decelerate);
+  animation: modalPanelEnter 260ms var(--ease-out-expo) forwards;
 }
 
-@keyframes modalIn {
-  from { opacity: 0; transform: scale(0.97); }
-  to   { opacity: 1; transform: scale(1); }
+.modal-panel--closing {
+  animation: modalPanelExit 180ms var(--ease-accelerate) forwards;
 }
 
-.modal-panel--sm { max-width: 400px; }
-.modal-panel--md { max-width: 520px; }
-.modal-panel--lg { max-width: 680px; }
+@keyframes modalPanelEnter {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes modalPanelExit {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+}
+
+.modal-panel--sm { max-width: 420px; }
+.modal-panel--md { max-width: 540px; }
+.modal-panel--lg { max-width: 700px; }
 
 .modal-panel__header {
   display: flex;
@@ -48,10 +82,32 @@
   padding: var(--space-6) var(--space-6) 0;
 }
 
+.modal-panel__title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .modal-panel__title {
-  flex: 1;
+  color: var(--color-text-primary);
+}
+
+.modal-panel__subtitle {
+  color: var(--color-text-secondary);
 }
 
 .modal-panel__body {
   padding: var(--space-6);
+}
+
+@media (max-width: 640px) {
+  .modal-panel {
+    border-radius: var(--radius-lg);
+  }
+  .modal-panel__header {
+    padding: var(--space-5) var(--space-5) 0;
+  }
+  .modal-panel__body {
+    padding: var(--space-5);
+  }
 }

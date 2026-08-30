@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Users, X } from 'lucide-react';
+import { X, FileText, Palette, Code2, MessageSquare, Flame, CheckSquare, Users, Clock } from 'lucide-react';
 import { useRoom } from '../../hooks/useRoom';
 import { RoomTopBar } from './RoomTopBar';
 import { ParticipantList } from './participants/ParticipantList';
@@ -10,14 +10,15 @@ import { Whiteboard } from './whiteboard/Whiteboard';
 import { CodeScratchpad } from './code/CodeScratchpad';
 import { FocusTimer } from './focus/FocusTimer';
 import { GoalList } from './goals/GoalList';
+import { LiveActivity } from './activity/LiveActivity';
 import { Quiz } from './quiz/Quiz';
 import { useToast } from '../../components/Toast';
+import { useConnectionState } from '../../hooks/useConnectionState';
+import { formatExpiry } from '../../lib/formatters';
 import './RoomLayout.css';
 
-import { useConnectionState } from '../../hooks/useConnectionState';
-
 /**
- * The full room workspace — adapts between Study Room and Chat Room modes.
+ * The full room workspace — adapts cleanly between Study Room and Chat Room modes.
  */
 export function RoomLayout() {
   const { roomCode } = useParams();
@@ -42,7 +43,6 @@ export function RoomLayout() {
   // Center tab state for Study Rooms: 'notes' | 'whiteboard' | 'code'
   const [centerTab, setCenterTab] = useState('notes');
 
-  // Mobile bottom tab: 'notes' | 'whiteboard' | 'code' | 'chat' | 'focus' | 'goals' (or 'chat' | 'members' in Chat mode)
   const isChatMode = room?.type === 'CHAT';
   const [mobileTab, setMobileTab] = useState(() => (isChatMode ? 'chat' : 'notes'));
 
@@ -59,8 +59,6 @@ export function RoomLayout() {
     }
   }, [isChatMode]);
 
-  // Track whether we have already had a successful first connection so
-  // the "Connection restored" toast only fires on actual RECONNECTS.
   const hasConnectedOnceRef = useRef(false);
 
   // Connection status toasts
@@ -74,9 +72,9 @@ export function RoomLayout() {
     }
   }, [connectionStatus]); // eslint-disable-line
 
-  // Expiry warning (5 min)
+  // Expiry warning (5 min - Study Room only)
   useEffect(() => {
-    if (!room) return;
+    if (!room || isChatMode) return;
     const remaining = room.expiresAt - Date.now();
     if (remaining > 5 * 60 * 1000) {
       const t = setTimeout(() => {
@@ -84,7 +82,7 @@ export function RoomLayout() {
       }, remaining - 5 * 60 * 1000);
       return () => clearTimeout(t);
     }
-  }, [room?.expiresAt]); // eslint-disable-line
+  }, [room?.expiresAt, isChatMode]); // eslint-disable-line
 
   // Unread chat counter
   useEffect(() => {
@@ -102,11 +100,11 @@ export function RoomLayout() {
   if (room?._closed) {
     return (
       <div className="room-ended">
-        <p className="text-heading-lg">This room has ended.</p>
+        <h2 className="text-heading-lg font-bold">This room has ended.</h2>
         <p className="text-body-md" style={{ color: 'var(--color-text-secondary)' }}>
           {room._closed === 'expired' ? 'The session time ran out.' : 'All participants left the room.'}
         </p>
-        <button type="button" className="room-ended__btn" onClick={() => navigate('/')}>
+        <button type="button" className="room-ended__btn font-semibold" onClick={() => navigate('/')}>
           Return Home
         </button>
       </div>
@@ -117,7 +115,9 @@ export function RoomLayout() {
     return (
       <div className="room-loading">
         <div className="room-loading__spinner" aria-label="Loading room…" />
-        <p className="text-body-sm" style={{ color: 'var(--color-text-tertiary)' }}>Joining room…</p>
+        <p className="text-body-sm" style={{ color: 'var(--color-text-tertiary)' }}>
+          Joining room…
+        </p>
       </div>
     );
   }
@@ -128,7 +128,11 @@ export function RoomLayout() {
   const effectiveCenterTab = quizActive ? 'quiz' : centerTab;
 
   return (
-    <div className={`room-layout ${focusSession?.status === 'FOCUSING' ? 'room-layout--focusing' : ''}`}>
+    <div
+      className={`room-layout ${
+        focusSession?.status === 'FOCUSING' && !isChatMode ? 'room-layout--focusing' : ''
+      } ${isChatMode ? 'room-layout--chat-room' : ''}`}
+    >
       <RoomTopBar
         room={room}
         me={me}
@@ -141,19 +145,22 @@ export function RoomLayout() {
       />
 
       {/* ============================================================
-          CHAT ROOM EXPERIENCE
+          CHAT ROOM EXPERIENCE (2-Column Dedicated Chat Layout)
           ============================================================ */}
       {isChatMode ? (
         <div className="room-layout__body room-layout__body--chat-only">
-          {/* Left sidebar: Members & Room Info */}
-          <aside className="room-layout__left room-layout__left--chat-mode">
-            <ParticipantList participants={participants} hostId={room.hostId} />
-            <div className="chat-room-info-card">
-              <span className="text-label text-tertiary">Room Info</span>
-              <p className="text-body-sm text-secondary mt-1">
-                Temporary chat and file-sharing room. All messages and files expire when the room ends.
-              </p>
-            </div>
+          {/* Left sidebar: Collaboration Panel */}
+          <aside className="room-layout__left room-layout__left--chat-mode room-layout__sidebar-panel">
+            <ParticipantList
+              participants={participants}
+              hostId={room.hostId}
+              isChatRoom={true}
+              roomCode={room.roomCode}
+              expiresAt={room.expiresAt}
+              messageCount={chatMessages.filter(m => m.type === 'user').length}
+              fileCount={chatMessages.filter(m => m.type === 'user' && m.file).length}
+            />
+            <LiveActivity isChatRoom={true} />
           </aside>
 
           {/* Main workspace: Full-width Chat */}
@@ -164,7 +171,8 @@ export function RoomLayout() {
               participants={room.participants}
               actions={actions}
               onFocus={markChatRead}
-              roomId={room.roomId}
+              roomId={room.roomCode}
+              roomName={room.name}
               isChatRoom={true}
             />
           </main>
@@ -174,33 +182,38 @@ export function RoomLayout() {
            STUDY ROOM EXPERIENCE (3 Columns)
            ============================================================ */
         <div className="room-layout__body">
-          {/* Left column */}
+          {/* Left column: People, Focus, Goals, Activity */}
           <aside className="room-layout__left">
-            <ParticipantList participants={participants} hostId={room.hostId} />
+            <ParticipantList participants={participants} hostId={room.hostId} isChatRoom={false} roomCode={room.roomCode} />
             <FocusTimer focusSession={focusSession} isHost={isHost} actions={actions} />
             <GoalList goals={goals} meId={me?.participantId} hostId={room.hostId} actions={actions} />
+            <LiveActivity isChatRoom={false} />
           </aside>
 
-          {/* Center Column */}
+          {/* Center Column: Primary Workspace */}
           <main className="room-layout__center" role="main">
             {!quizActive && (
-              <div className="room-layout__tabs" role="tablist" aria-label="Workspace">
-                {[
-                  { id: 'notes', label: 'Notes' },
-                  { id: 'whiteboard', label: 'Whiteboard' },
-                  { id: 'code', label: 'Code' },
-                ].map(({ id, label }) => (
-                  <button
-                    key={id}
-                    type="button"
-                    role="tab"
-                    aria-selected={centerTab === id}
-                    className={`room-layout__tab ${centerTab === id ? 'room-layout__tab--active' : ''}`}
-                    onClick={() => setCenterTab(id)}
-                  >
-                    {label}
-                  </button>
-                ))}
+              <div className="room-layout__tabs-bar">
+                <div className="room-layout__tabs" role="tablist" aria-label="Workspace tool switcher">
+                  {[
+                    { id: 'notes', label: 'Notes', icon: FileText },
+                    { id: 'whiteboard', label: 'Whiteboard', icon: Palette },
+                    { id: 'code', label: 'Code', icon: Code2 },
+                  ].map(({ id, label, icon: Icon }) => (
+                    <button
+                      key={id}
+                      type="button"
+                      role="tab"
+                      aria-selected={centerTab === id}
+                      className={`room-layout__tab ${centerTab === id ? 'room-layout__tab--active' : ''}`}
+                      onClick={() => setCenterTab(id)}
+                    >
+                      <Icon size={14} className="room-layout__tab-icon" />
+                      <span>{label}</span>
+                    </button>
+                  ))}
+                </div>
+
                 {quizState?.status === 'COMPLETED' && (
                   <span className="room-layout__quiz-badge text-label">Quiz complete</span>
                 )}
@@ -247,8 +260,7 @@ export function RoomLayout() {
             </div>
           </main>
 
-
-          {/* Right column — Chat */}
+          {/* Right column: Chat & P2P File Sharing */}
           <aside
             className={`room-layout__right ${focusSession?.status === 'FOCUSING' ? 'room-layout__right--dimmed' : ''}`}
           >
@@ -258,7 +270,7 @@ export function RoomLayout() {
               participants={room.participants}
               actions={actions}
               onFocus={markChatRead}
-              roomId={room.roomId}
+              roomId={room.roomCode}
             />
           </aside>
         </div>
@@ -267,7 +279,7 @@ export function RoomLayout() {
       {/* Tablet drawer */}
       {drawerOpen && (
         <div className="tablet-drawer-backdrop" onClick={() => setDrawerOpen(false)}>
-          <div className="tablet-drawer glass-panel" onClick={(e) => e.stopPropagation()}>
+          <div className="tablet-drawer" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
               className="tablet-drawer__close"
@@ -276,11 +288,35 @@ export function RoomLayout() {
             >
               <X size={18} />
             </button>
-            <ParticipantList participants={participants} hostId={room.hostId} />
-            {!isChatMode && (
+            <ParticipantList
+              participants={participants}
+              hostId={room.hostId}
+              isChatRoom={isChatMode}
+              roomCode={room.roomCode}
+            />
+            {isChatMode ? (
+              <>
+                <div className="chat-room-info-card">
+                  <div className="chat-room-info-card__header">
+                    <span className="text-label text-tertiary">Room Info</span>
+                    <span className="chat-room-info-card__badge text-caption">
+                      <Clock size={11} /> {formatExpiry(room.expiresAt)}
+                    </span>
+                  </div>
+                  <p className="text-body-sm font-semibold text-primary mt-1">
+                    Temporary collaboration room
+                  </p>
+                  <p className="text-caption text-tertiary mt-1">
+                    Messages and shared files expire when the room ends.
+                  </p>
+                </div>
+                <LiveActivity isChatRoom={true} />
+              </>
+            ) : (
               <>
                 <FocusTimer focusSession={focusSession} isHost={isHost} actions={actions} />
                 <GoalList goals={goals} meId={me?.participantId} hostId={room.hostId} actions={actions} />
+                <LiveActivity isChatRoom={false} />
               </>
             )}
           </div>
@@ -291,9 +327,9 @@ export function RoomLayout() {
       <nav className="mobile-tab-bar" aria-label="Room navigation">
         {isChatMode
           ? [
-              { id: 'chat', label: 'Chat', badge: unreadCount },
-              { id: 'members', label: 'Members' },
-            ].map(({ id, label, badge }) => (
+              { id: 'chat', label: 'Chat', icon: MessageSquare, badge: unreadCount },
+              { id: 'members', label: 'Members', icon: Users },
+            ].map(({ id, label, icon: Icon, badge }) => (
               <button
                 key={id}
                 type="button"
@@ -305,6 +341,7 @@ export function RoomLayout() {
                 aria-label={label}
                 aria-current={mobileTab === id ? 'page' : undefined}
               >
+                <Icon size={16} />
                 <span className="mobile-tab-bar__label text-caption">{label}</span>
                 {badge > 0 && (
                   <span className="mobile-tab-bar__badge text-caption">{badge > 9 ? '9+' : badge}</span>
@@ -312,13 +349,13 @@ export function RoomLayout() {
               </button>
             ))
           : [
-              { id: 'notes', label: 'Notes' },
-              { id: 'whiteboard', label: 'Board' },
-              { id: 'code', label: 'Code' },
-              { id: 'chat', label: 'Chat', badge: unreadCount },
-              { id: 'focus', label: 'Focus' },
-              { id: 'goals', label: 'Goals' },
-            ].map(({ id, label, badge }) => (
+              { id: 'notes', label: 'Notes', icon: FileText },
+              { id: 'whiteboard', label: 'Board', icon: Palette },
+              { id: 'code', label: 'Code', icon: Code2 },
+              { id: 'chat', label: 'Chat', icon: MessageSquare, badge: unreadCount },
+              { id: 'focus', label: 'Focus', icon: Flame },
+              { id: 'goals', label: 'Goals', icon: CheckSquare },
+            ].map(({ id, label, icon: Icon, badge }) => (
               <button
                 key={id}
                 type="button"
@@ -330,6 +367,7 @@ export function RoomLayout() {
                 aria-label={label}
                 aria-current={mobileTab === id ? 'page' : undefined}
               >
+                <Icon size={16} />
                 <span className="mobile-tab-bar__label text-caption">{label}</span>
                 {badge > 0 && (
                   <span className="mobile-tab-bar__badge text-caption">{badge > 9 ? '9+' : badge}</span>
@@ -338,7 +376,7 @@ export function RoomLayout() {
             ))}
       </nav>
 
-      {/* Mobile content — persistent panes, no remounting on tab switch */}
+      {/* Mobile content — persistent panes */}
       <div className="mobile-content">
         {isChatMode ? (
           <>
@@ -352,16 +390,35 @@ export function RoomLayout() {
                 participants={room.participants}
                 actions={actions}
                 onFocus={markChatRead}
-                roomId={room.roomId}
+                roomId={room.roomCode}
                 isChatRoom={true}
               />
             </div>
             <div
               className={`mobile-pane ${mobileTab === 'members' ? 'mobile-pane--active' : ''}`}
               aria-hidden={mobileTab !== 'members'}
-              style={{ overflowY: 'auto', padding: 'var(--space-4)' }}
+              style={{ overflowY: 'auto', padding: 'var(--space-3)' }}
             >
-              <ParticipantList participants={participants} hostId={room.hostId} />
+              <ParticipantList
+                participants={participants}
+                hostId={room.hostId}
+                isChatRoom={true}
+                roomCode={room.roomCode}
+              />
+              <div className="chat-room-info-card mt-3">
+                <div className="chat-room-info-card__header">
+                  <span className="text-label text-tertiary">Room Info</span>
+                  <span className="chat-room-info-card__badge text-caption">
+                    <Clock size={11} /> {formatExpiry(room.expiresAt)}
+                  </span>
+                </div>
+                <p className="text-body-sm font-semibold text-primary mt-1">
+                  Temporary collaboration room
+                </p>
+                <p className="text-caption text-tertiary mt-1">
+                  Messages and shared files expire when the room ends.
+                </p>
+              </div>
             </div>
           </>
         ) : (
@@ -398,7 +455,7 @@ export function RoomLayout() {
                 participants={room.participants}
                 actions={actions}
                 onFocus={markChatRead}
-                roomId={room.roomId}
+                roomId={room.roomCode}
               />
             </div>
             <div
@@ -416,7 +473,6 @@ export function RoomLayout() {
           </>
         )}
       </div>
-
     </div>
   );
 }

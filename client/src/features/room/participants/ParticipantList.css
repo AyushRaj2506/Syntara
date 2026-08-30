@@ -1,63 +1,522 @@
+/* ============================================================
+   PARTICIPANTS & COLLABORATION SIDEBAR — Syntara Chat Room Redesign
+   ============================================================ */
+
 .participant-list {
-  padding: var(--space-4);
-  border-bottom: var(--border-width-default) solid var(--color-border-subtle);
-}
-.participant-list__header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: var(--space-3);
+  flex-direction: column;
+  width: 100%;
+  box-sizing: border-box;
+  height: 100%;
+  overflow-y: auto;
 }
-.participant-list__items {
+
+.participant-list--chat-mode {
+  padding: var(--space-3);
+  gap: 0;
+}
+
+/* ── Collaboration Section ── */
+.collab-section {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-border-subtle);
 }
+
+.collab-section:last-child {
+  border-bottom: none;
+}
+
+.collab-section__label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-1);
+}
+
+.collab-section__title {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-ui);
+}
+
+.collab-section__count {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+  background-color: var(--color-surface-2);
+  border: 1px solid var(--color-border-subtle);
+  padding: 1px 7px;
+  border-radius: var(--radius-full);
+}
+
+/* ── Participant List Items ── */
+.participant-list__items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .participant-row {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  animation: participantIn var(--duration-standard) var(--ease-decelerate);
+  gap: 10px;
+  padding: 6px 6px;
+  border-radius: var(--radius-sm);
+  transition: background-color var(--duration-fast) var(--ease-standard);
+  cursor: default;
 }
-@keyframes participantIn {
-  from { opacity: 0; transform: translateX(-6px); }
-  to   { opacity: 1; transform: translateX(0); }
+
+.participant-row:hover {
+  background-color: var(--color-surface-2);
 }
+
 .participant-row__avatar-wrap {
   position: relative;
   flex-shrink: 0;
 }
+
 .participant-row__status-dot {
   position: absolute;
   bottom: -1px;
   right: -1px;
   width: 8px;
   height: 8px;
-  border-radius: var(--radius-full);
-  border: 1.5px solid var(--color-surface-1);
+  border-radius: 50%;
+  border: 2px solid var(--color-surface-1);
 }
-.participant-row__status-dot--connected    { background-color: var(--color-success); }
-.participant-row__status-dot--reconnecting {
-  background-color: var(--color-accent);
-  animation: dotPulse 1.4s ease-in-out infinite;
+
+.participant-row__status-dot--connected {
+  background-color: var(--color-success);
 }
+
+.participant-row__status-dot--disconnected {
+  background-color: var(--color-text-tertiary);
+}
+
 .participant-row__info {
   display: flex;
   flex-direction: column;
-  gap: 2px;
   min-width: 0;
+  flex: 1;
+  gap: 1px;
 }
-.participant-row__name {
-  color: var(--color-text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.participant-row__badges {
+
+.participant-row__name-row {
   display: flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: 6px;
 }
-.participant-row__focus-icon {
+
+.participant-row__name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: var(--font-ui);
+}
+
+.participant-row__activity-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.participant-row__focus-flame {
+  animation: flamePulse 1.5s infinite ease-in-out;
+}
+
+@keyframes flamePulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
+.participant-row__activity-text {
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-ui);
+}
+
+.online-indicator-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background-color: var(--color-success);
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.participant-list__empty {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-2);
+  border: 1px dashed var(--color-border-subtle);
+  margin-top: 4px;
+}
+
+/* ── Quick Actions ── */
+.quick-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.quick-action-wrap {
+  position: relative;
+}
+
+.quick-action-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: none;
+  border: 1px solid var(--color-border-subtle);
+  color: var(--color-text-secondary);
+  font-size: 12.5px;
+  font-weight: 500;
+  font-family: var(--font-ui);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-standard);
+  text-align: left;
+}
+
+.quick-action-btn:hover {
+  background-color: var(--color-surface-2);
+  color: var(--color-text-primary);
+  border-color: var(--color-border-default);
+}
+
+.quick-action-btn__icon {
+  flex-shrink: 0;
   color: var(--color-accent);
+}
+
+/* Invite Popover */
+.invite-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background-color: var(--color-surface-elevated, var(--color-surface-1));
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-3);
+  z-index: var(--z-popover);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  animation: popoverIn 120ms var(--ease-standard);
+}
+
+@keyframes popoverIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.invite-popover__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.invite-popover__title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  font-family: var(--font-ui);
+}
+
+.invite-popover__close {
+  background: none;
+  border: none;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  border-radius: var(--radius-xs);
+  transition: color var(--duration-fast);
+}
+
+.invite-popover__close:hover {
+  color: var(--color-text-primary);
+}
+
+.invite-popover__link-row {
+  background-color: var(--color-surface-2);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-xs);
+  padding: 6px 8px;
+  overflow: hidden;
+}
+
+.invite-popover__link-text {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+.invite-popover__copy-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: var(--radius-sm);
+  background-color: var(--color-accent);
+  color: #090B0E;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-ui);
+  border: none;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.invite-popover__copy-btn:hover {
+  background-color: var(--color-accent-hover);
+}
+
+.invite-popover__copy-btn--copied {
+  background-color: var(--color-success);
+}
+
+/* ── Room Status Card ── */
+.room-status-card {
+  background-color: var(--color-surface-2);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.room-status-card__live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.room-status-card__live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: var(--color-success);
+  animation: presencePulse 2.5s infinite ease-in-out;
+  flex-shrink: 0;
+}
+
+@keyframes presencePulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.55; transform: scale(0.85); }
+}
+
+.room-status-card__live-text {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: var(--color-success);
+  font-family: var(--font-ui);
+}
+
+.room-status-card__desc {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  font-family: var(--font-ui);
+  line-height: 1.4;
+}
+
+.room-status-card__expiry {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--color-text-secondary);
+}
+
+.room-status-card__expiry-icon {
+  flex-shrink: 0;
+}
+
+.room-status-card__expiry-text {
+  font-size: 11.5px;
+  font-family: var(--font-ui);
+}
+
+.room-status-card__note {
+  margin: 0;
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-ui);
+  line-height: 1.45;
+}
+
+/* ── Session Stats ── */
+.session-empty {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-ui);
+  font-style: italic;
+  padding: var(--space-1) var(--space-1);
+}
+
+.session-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.session-stat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 6px;
+  border-radius: var(--radius-xs);
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.session-stat-row:hover {
+  background-color: var(--color-surface-2);
+}
+
+.session-stat-label {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  font-family: var(--font-ui);
+}
+
+.session-stat-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  font-family: var(--font-ui);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Old sidebar card styles (kept for Study Room compatibility) ── */
+.sidebar-card {
+  background-color: var(--color-surface-2);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  transition: border-color var(--duration-fast) var(--ease-standard);
+  box-shadow: var(--shadow-sm);
+}
+
+.sidebar-card:hover {
+  border-color: var(--color-border-default);
+}
+
+.sidebar-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sidebar-card__title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sidebar-card__count {
+  background-color: var(--color-surface-2);
+  color: var(--color-text-secondary);
+  padding: 1px 7px;
+  border-radius: var(--radius-full);
+  font-size: 10.5px;
+  border: 1px solid var(--color-border-subtle);
+}
+
+.sidebar-card__desc {
+  margin: 0;
+  line-height: 1.45;
+  font-size: 12px;
+}
+
+.sidebar-card__subtitle {
+  margin: 0;
+  font-size: 12.5px;
+}
+
+.sidebar-card__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background-color: var(--color-surface-1);
+  color: var(--color-text-secondary);
+  padding: 1px 6px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--color-border-subtle);
+  font-size: 10px;
+}
+
+.sidebar-card--people { background-color: var(--color-surface-2); }
+.sidebar-card--invite { background-color: var(--color-surface-2); border: 1px solid var(--color-border-subtle); }
+.sidebar-card--info   { background-color: var(--color-surface-1); border: 1px dashed var(--color-border-default); }
+
+.sidebar-card__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 2px;
+}
+
+.sidebar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-1);
+  border: 1px solid var(--color-border-default);
+  color: var(--color-text-secondary);
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-standard);
+  font-family: var(--font-ui);
+  box-shadow: var(--shadow-sm);
+}
+
+.sidebar-btn:hover {
+  background-color: var(--color-surface-3, var(--color-surface-2));
+  color: var(--color-text-primary);
+  border-color: var(--color-border-strong);
+  transform: translateY(-1px);
+}
+
+.sidebar-btn--copied {
+  color: var(--color-success);
+  border-color: var(--color-success);
 }

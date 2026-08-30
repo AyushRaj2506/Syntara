@@ -1,90 +1,78 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Shield, Users, Zap } from 'lucide-react';
 import { BrandMark } from './BrandMark';
 import { Button } from '../../components/Button';
-import { isValidRoomCode } from '../../lib/formatters';
 import './Hero.css';
 
 /** @param {{ onCreateRoom: () => void }} props */
 export function Hero({ onCreateRoom }) {
-  const [code, setCode] = useState('');
-  const [error, setError] = useState('');
-  const navigate = useNavigate();
-
-  const handleJoin = (e) => {
-    e.preventDefault();
-    const upper = code.toUpperCase().trim();
-    if (!upper) return;
-    if (!isValidRoomCode(upper)) {
-      setError('That room code doesn\'t look right.');
-      return;
-    }
-    navigate(`/room/${upper}`);
-  };
-
   return (
-    <section className="hero" aria-label="Hero">
-      {/* Ambient orbit motif */}
-      <div className="hero__orbit-bg" aria-hidden="true">
-        <BrandMark size={520} opacity={0.055} animated className="hero__orbit-svg" />
+    <section className="hero" aria-label="Syntara Hero">
+      {/* Atmospheric Ambient Orbit Background */}
+      <div className="hero__ambient-bg" aria-hidden="true">
+        <div className="hero__ambient-glow" />
+        <div className="hero__orbit-art">
+          <BrandMark size={520} opacity={0.06} animated className="hero__orbit-svg" />
+        </div>
       </div>
 
-      <div className="hero__content">
-        {/* Eyebrow */}
-        <span className="hero__eyebrow text-label">Real-Time Study Rooms</span>
+      <div className="hero__container">
+        {/* Live Status Eyebrow */}
+        <div className="hero__eyebrow-wrap">
+          <div className="hero__status-pill">
+            <span className="hero__status-dot" />
+            <span className="hero__status-text">Ephemeral Collaboration Space</span>
+            <span className="hero__status-badge">No Sign-up</span>
+          </div>
+        </div>
 
-        {/* Headline */}
-        <h1 className="hero__headline text-display-xl">
-          Learn together.<br />Focus together.
+        {/* Editorial Headline with Staggered Entrance & Safe Descender Clearance */}
+        <h1 className="hero__headline text-display-2xl">
+          <span className="hero__headline-line hero__headline-line--1">Learn together.</span>
+          <span className="hero__headline-line hero__headline-line--2">
+            Focus in <span className="hero__headline-accent">sync.</span>
+          </span>
         </h1>
 
         {/* Subtext */}
         <p className="hero__subtext text-body-lg">
-          Create a focused study room in seconds. Share a code, bring your notes,
-          and get through the syllabus with people who are actually working too.
+          Spin up a shared study room in seconds. Bring your group, sync your notes,
+          sketch on a shared whiteboard, and lock into synchronized focus sprints.
         </p>
 
-        {/* CTAs */}
-        <div className="hero__ctas">
+        {/* Single Dominant Primary Action */}
+        <div className="hero__action-wrap">
           <Button
-            size="lg"
+            size="md"
             onClick={onCreateRoom}
             id="hero-create-room"
+            className="hero__cta-btn"
           >
-            Create a Room
-            <ArrowRight size={18} aria-hidden="true" />
+            <span>Create a Room</span>
+            <ArrowRight size={16} className="hero__cta-arrow" aria-hidden="true" />
           </Button>
-          <Button variant="ghost" size="lg" onClick={() => {
-            document.querySelector('.hero__join-input')?.focus();
-          }}>
-            Join a Room
-          </Button>
+
+          <p className="hero__trust-line text-caption">
+            No signup · No download · Free to use
+          </p>
         </div>
 
-        {/* Inline join input */}
-        <form className="hero__join-form" onSubmit={handleJoin} aria-label="Join a room by code">
-          <input
-            className={`hero__join-input ${error ? 'hero__join-input--error' : ''}`}
-            type="text"
-            placeholder="Enter room code — e.g. DSA-7X92"
-            value={code}
-            maxLength={12}
-            aria-label="Room code"
-            onChange={(e) => {
-              setCode(e.target.value.toUpperCase());
-              setError('');
-            }}
-          />
-          {code && (
-            <button type="submit" className="hero__join-btn" aria-label="Join room">
-              <ArrowRight size={18} />
-            </button>
-          )}
-          {error && (
-            <span className="hero__join-error text-caption" role="alert">{error}</span>
-          )}
-        </form>
+        {/* Reassurance Trust Strip */}
+        <div className="hero__trust-strip">
+          <div className="hero__trust-item">
+            <Zap size={14} className="hero__trust-icon" />
+            <span className="text-caption">Instant Real-time Sync</span>
+          </div>
+          <div className="hero__trust-dot" />
+          <div className="hero__trust-item">
+            <Shield size={14} className="hero__trust-icon" />
+            <span className="text-caption">Zero-Retention Privacy</span>
+          </div>
+          <div className="hero__trust-dot" />
+          <div className="hero__trust-item">
+            <Users size={14} className="hero__trust-icon" />
+            <span className="text-caption">Up to 50 Co-learners</span>
+          </div>
+        </div>
       </div>
     </section>
   );

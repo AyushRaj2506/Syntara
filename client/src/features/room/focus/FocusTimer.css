@@ -1,13 +1,16 @@
+/* ============================================================
+   FOCUS TIMER — Syntara Redesign
+   ============================================================ */
+
 .focus-timer {
-  padding: var(--space-4);
-  border-bottom: var(--border-width-default) solid var(--color-border-subtle);
+  padding: 0 var(--space-4) var(--space-4) var(--space-4);
 }
 
 .focus-card {
   background-color: var(--color-surface-2);
-  border: var(--border-width-default) solid var(--color-border-subtle);
-  border-radius: var(--radius-md);
-  padding: var(--space-4);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3) var(--space-4);
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -15,111 +18,65 @@
 }
 
 .focus-card--active {
-  border-color: rgba(232, 163, 61, 0.45);
-  background-color: var(--color-surface-elevated);
-  box-shadow: 0 0 24px rgba(232, 163, 61, 0.12), inset 0 0 12px rgba(232, 163, 61, 0.04);
-  animation: focusPulse 4s ease-in-out infinite alternate;
-}
-
-@keyframes focusPulse {
-  0% {
-    border-color: rgba(232, 163, 61, 0.35);
-    box-shadow: 0 0 16px rgba(232, 163, 61, 0.08);
-  }
-  100% {
-    border-color: rgba(232, 163, 61, 0.6);
-    box-shadow: 0 0 28px rgba(232, 163, 61, 0.16);
-  }
-}
-
-
-.focus-card--completed {
-  border-color: rgba(111, 191, 139, 0.4);
-  background-color: rgba(111, 191, 139, 0.08);
-  align-items: center;
-  text-align: center;
-  padding: var(--space-6) var(--space-4);
+  border-color: rgba(232, 163, 61, 0.4);
+  background: linear-gradient(
+    180deg,
+    var(--color-surface-2) 0%,
+    rgba(232, 163, 61, 0.05) 100%
+  );
+  box-shadow: var(--shadow-sm);
 }
 
 .focus-card__header {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: center;
 }
 
-.focus-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--color-accent);
-  background-color: var(--color-accent-muted);
-  padding: 2px 8px;
-  border-radius: var(--radius-full);
+.focus-duration-chips {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
 }
 
-.break-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--color-success);
-  background-color: rgba(111, 191, 139, 0.15);
-  padding: 2px 8px;
-  border-radius: var(--radius-full);
-}
-
-.focus-flame {
-  animation: flamePulse 1.8s infinite ease-in-out;
-}
-
-@keyframes flamePulse {
-  0%, 100% { opacity: 0.8; transform: scale(0.95); }
-  50% { opacity: 1; transform: scale(1.1); }
-}
-
-.focus-timer__digits {
-  font-family: 'Courier New', monospace;
+.focus-chip {
+  padding: 5px 0;
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-1);
+  border: 1px solid var(--color-border-default);
+  color: var(--color-text-secondary);
+  font-size: 12px;
   font-weight: 600;
+  cursor: pointer;
   text-align: center;
-  letter-spacing: 0.05em;
-  font-variant-numeric: tabular-nums;
+  transition: all var(--duration-fast) var(--ease-standard);
+}
+
+.focus-chip:hover {
+  border-color: var(--color-accent);
+  color: var(--color-text-primary);
+}
+
+.focus-chip--selected {
+  background-color: var(--color-accent);
+  border-color: var(--color-accent-strong);
+  color: #090B0E;
+  box-shadow: var(--shadow-tactile-accent);
+}
+
+.focus-card__prompt {
+  text-align: center;
   margin: var(--space-1) 0;
 }
 
-.focus-card__controls {
-  display: flex;
-  justify-content: center;
-  gap: var(--space-3);
-  margin-top: var(--space-1);
-}
-
-.focus-ctrl-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: var(--radius-full);
-  background-color: var(--color-surface-2);
-  border: 1px solid var(--color-border-default);
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  transition: all var(--duration-micro) var(--ease-standard);
-}
-
-.focus-ctrl-btn:hover {
-  color: var(--color-text-primary);
-  border-color: var(--color-border-strong);
-  background-color: var(--color-surface-elevated);
-}
-
-.focus-ctrl-btn--danger:hover {
-  color: var(--color-danger);
-  border-color: var(--color-danger);
-  background-color: rgba(224, 108, 99, 0.1);
-}
-
 .focus-start-btn {
-  margin-top: var(--space-2);
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  height: 38px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
 }
 
 .focus-card__waiting {
@@ -127,14 +84,117 @@
   text-align: center;
 }
 
-.focus-timer--fullscreen {
+/* Active State */
+.focus-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-accent);
+  background-color: var(--color-accent-muted);
+  padding: 1px 7px;
+  border-radius: var(--radius-full);
+}
+
+.focus-flame {
+  animation: livePulse 1.8s infinite ease-in-out;
+}
+
+.focus-participant-count {
+  color: var(--color-accent);
+  font-size: 10px;
+}
+
+.focus-card__timer-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.focus-timer__digits {
+  font-size: 34px;
+  color: var(--color-text-primary);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.focus-timer__subtitle {
+  font-size: 11px;
+}
+
+/* Progress track */
+.focus-progress-track {
+  width: 100%;
+  height: 4px;
+  background-color: var(--color-border-subtle);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.focus-progress-bar {
   height: 100%;
+  background-color: var(--color-accent);
+  border-radius: var(--radius-full);
+  transition: width 1s linear;
+}
+
+.focus-card__controls {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--space-8);
+  gap: var(--space-2);
 }
-.focus-timer--fullscreen .focus-card {
-  width: 100%;
-  max-width: 400px;
+
+.focus-ctrl-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-1);
+  border: 1px solid var(--color-border-default);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-standard);
+}
+
+.focus-ctrl-btn:hover {
+  background-color: var(--color-surface-3);
+  color: var(--color-text-primary);
+}
+
+.focus-ctrl-btn--danger:hover {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+  background-color: var(--color-danger-subtle);
+}
+
+/* Completed state */
+.focus-card--completed {
+  text-align: center;
+  align-items: center;
+  padding: var(--space-4);
+}
+
+.focus-card__completed-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.focus-reset-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.focus-reset-btn:hover {
+  text-decoration: underline;
 }

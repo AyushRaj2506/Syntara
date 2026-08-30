@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -17,6 +17,7 @@ import {
   Trash2,
   Check,
   X,
+  FileText,
 } from 'lucide-react';
 import { socket } from '../../../lib/socket';
 import './StudyNotes.css';
@@ -40,7 +41,7 @@ export function StudyNotes({ initialContent, actions }) {
         heading: { levels: [1, 2, 3] },
       }),
       Placeholder.configure({
-        placeholder: 'Start typing your notes together…',
+        placeholder: 'Start building your shared notes. Everything you write here is synced with everyone in the room…',
       }),
       CharacterCount.configure({
         limit: 50000,
@@ -135,18 +136,20 @@ export function StudyNotes({ initialContent, actions }) {
     return () => clearInterval(interval);
   }, []);
 
-  // Clear — called AFTER inline confirmation; no window.confirm needed.
   const handleClearNotes = () => {
     if (editor) {
       clearTimeout(debounceTimerRef.current);
       isLocalUpdateRef.current = true;
       editor.commands.clearContent(true);
-      setTimeout(() => { isLocalUpdateRef.current = false; }, 400);
+      setTimeout(() => {
+        isLocalUpdateRef.current = false;
+      }, 400);
     }
     actions.clearNotes?.();
   };
 
   const hasEditors = Object.keys(editingUsers).length > 0;
+  const isEditorEmpty = editor ? editor.isEmpty : true;
 
   if (!editor) return null;
 
@@ -162,7 +165,7 @@ export function StudyNotes({ initialContent, actions }) {
             title="Heading 1"
             aria-label="Heading 1"
           >
-            <Heading1 size={16} />
+            <Heading1 size={15} />
           </button>
           <button
             type="button"
@@ -171,7 +174,7 @@ export function StudyNotes({ initialContent, actions }) {
             title="Heading 2"
             aria-label="Heading 2"
           >
-            <Heading2 size={16} />
+            <Heading2 size={15} />
           </button>
         </div>
 
@@ -185,7 +188,7 @@ export function StudyNotes({ initialContent, actions }) {
             title="Bold (Ctrl+B)"
             aria-label="Bold"
           >
-            <Bold size={16} />
+            <Bold size={15} />
           </button>
           <button
             type="button"
@@ -194,7 +197,7 @@ export function StudyNotes({ initialContent, actions }) {
             title="Italic (Ctrl+I)"
             aria-label="Italic"
           >
-            <Italic size={16} />
+            <Italic size={15} />
           </button>
           <button
             type="button"
@@ -203,7 +206,7 @@ export function StudyNotes({ initialContent, actions }) {
             title="Inline Code"
             aria-label="Code"
           >
-            <Code size={16} />
+            <Code size={15} />
           </button>
         </div>
 
@@ -217,7 +220,7 @@ export function StudyNotes({ initialContent, actions }) {
             title="Bullet List"
             aria-label="Bullet list"
           >
-            <List size={16} />
+            <List size={15} />
           </button>
           <button
             type="button"
@@ -226,7 +229,7 @@ export function StudyNotes({ initialContent, actions }) {
             title="Numbered List"
             aria-label="Numbered list"
           >
-            <ListOrdered size={16} />
+            <ListOrdered size={15} />
           </button>
           <button
             type="button"
@@ -235,72 +238,75 @@ export function StudyNotes({ initialContent, actions }) {
             title="Blockquote"
             aria-label="Quote"
           >
-            <Quote size={16} />
+            <Quote size={15} />
           </button>
         </div>
 
         <div className="study-notes__divider" />
 
-          <div className="study-notes__tool-group">
-            <button
-              type="button"
-              className="toolbar-btn"
-              onClick={() => editor.chain().focus().undo().run()}
-              disabled={!editor.can().undo()}
-              title="Undo"
-              aria-label="Undo"
-            >
-              <RotateCcw size={16} />
-            </button>
-            <button
-              type="button"
-              className="toolbar-btn"
-              onClick={() => editor.chain().focus().redo().run()}
-              disabled={!editor.can().redo()}
-              title="Redo"
-              aria-label="Redo"
-            >
-              <RotateCw size={16} />
-            </button>
+        <div className="study-notes__tool-group">
+          <button
+            type="button"
+            className="toolbar-btn"
+            onClick={() => editor.chain().focus().undo().run()}
+            disabled={!editor.can().undo()}
+            title="Undo"
+            aria-label="Undo"
+          >
+            <RotateCcw size={15} />
+          </button>
+          <button
+            type="button"
+            className="toolbar-btn"
+            onClick={() => editor.chain().focus().redo().run()}
+            disabled={!editor.can().redo()}
+            title="Redo"
+            aria-label="Redo"
+          >
+            <RotateCw size={15} />
+          </button>
 
-            {confirmingClear ? (
-              <div className="notes-confirm-group" role="group" aria-label="Confirm clear notes">
-                <span className="notes-confirm-label">Clear notes?</span>
-                <button
-                  type="button"
-                  className="toolbar-btn toolbar-btn--confirm-yes"
-                  onClick={() => { setConfirmingClear(false); handleClearNotes(); }}
-                  title="Yes, clear all notes"
-                  aria-label="Yes, clear notes"
-                >
-                  <Check size={14} />
-                </button>
-                <button
-                  type="button"
-                  className="toolbar-btn toolbar-btn--confirm-no"
-                  onClick={() => setConfirmingClear(false)}
-                  title="Cancel"
-                  aria-label="Cancel clear"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            ) : (
+          {confirmingClear ? (
+            <div className="notes-confirm-group" role="group" aria-label="Confirm clear notes">
+              <span className="notes-confirm-label text-caption">Clear notes?</span>
               <button
                 type="button"
-                className="toolbar-btn toolbar-btn--danger"
-                onClick={() => setConfirmingClear(true)}
-                title="Clear all shared notes"
-                aria-label="Clear all notes"
+                className="toolbar-btn toolbar-btn--confirm-yes"
+                onClick={() => {
+                  setConfirmingClear(false);
+                  handleClearNotes();
+                }}
+                title="Yes, clear all notes"
+                aria-label="Yes, clear notes"
               >
-                <Trash2 size={16} />
+                <Check size={13} />
               </button>
-            )}
-          </div>
+              <button
+                type="button"
+                className="toolbar-btn toolbar-btn--confirm-no"
+                onClick={() => setConfirmingClear(false)}
+                title="Cancel"
+                aria-label="Cancel clear"
+              >
+                <X size={13} />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="toolbar-btn toolbar-btn--danger"
+              onClick={() => setConfirmingClear(true)}
+              title="Clear all shared notes"
+              aria-label="Clear all notes"
+            >
+              <Trash2 size={15} />
+            </button>
+          )}
+        </div>
 
         {hasEditors && (
           <div className="study-notes__presence text-caption text-accent" aria-live="polite">
-            <span className="presence-dot" /> Someone is editing…
+            <span className="presence-dot" /> Co-editing active
           </div>
         )}
       </div>
@@ -308,6 +314,18 @@ export function StudyNotes({ initialContent, actions }) {
       {/* Editor Body */}
       <div className="study-notes__editor-wrapper">
         <EditorContent editor={editor} />
+
+        {isEditorEmpty && (
+          <div className="notes-empty-hero" aria-hidden="true">
+            <FileText size={28} className="text-tertiary notes-empty-hero__icon" />
+            <div className="notes-empty-hero__text">
+              <h4 className="text-body-md font-semibold text-primary">Start building your shared notes</h4>
+              <p className="text-caption text-tertiary">
+                Everything you write here is synchronized live with everyone in the room.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,58 +1,171 @@
-.final-cta {
-  padding: var(--space-20) var(--space-6);
-  text-align: center;
+/* ============================================================
+   FINAL CTA CARD & SITE FOOTER — Syntara Fluid Layout
+   ============================================================ */
+
+.final-cta-section {
+  padding: clamp(var(--space-12), 8vw, var(--space-20)) 0 clamp(var(--space-16), 10vw, var(--space-24));
+  width: 100%;
 }
-.final-cta__inner {
+
+.final-cta-card {
+  position: relative;
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  background: var(--color-surface-1);
+  border: 1.5px solid var(--color-border-strong);
+  box-shadow: var(--shadow-lg), var(--shadow-tactile-md);
+  padding: clamp(var(--space-10), 6vw, var(--space-16)) clamp(var(--space-5), 4vw, var(--space-8));
+  text-align: center;
+  width: 100%;
+}
+
+.final-cta-card__ambient {
+  position: absolute;
+  top: -80px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(80vw, 500px);
+  height: 350px;
+  background: radial-gradient(circle, var(--color-accent-muted) 0%, transparent 70%);
+  filter: blur(80px);
+  pointer-events: none;
+  opacity: 0.8;
+}
+
+.final-cta-card__content {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-6);
-}
-.final-cta__btn {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  background-color: var(--color-accent);
-  color: #0A0804;
-  border-radius: var(--radius-sm);
-  padding: var(--space-3) var(--space-8);
-  font-size: 15px;
-  font-weight: 500;
-  font-family: var(--font-ui);
-  cursor: pointer;
-  transition:
-    background-color var(--duration-standard) var(--ease-standard),
-    transform var(--duration-micro) var(--ease-standard),
-    box-shadow var(--duration-standard) var(--ease-standard);
-}
-.final-cta__btn:hover {
-  background-color: var(--color-accent-strong);
-  transform: translateY(-1px);
-}
-.final-cta__btn:active {
-  transform: scale(0.97);
-  box-shadow: var(--shadow-offset-brutalist);
+  gap: var(--space-4);
+  max-width: 660px;
+  margin: 0 auto;
 }
 
-.site-footer {
-  border-top: var(--border-width-default) solid var(--color-border-subtle);
-  padding: var(--space-6);
+.final-cta-card__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: var(--color-accent-muted);
+  padding: 3px 12px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-accent-subtle);
 }
+
+.final-cta-card__title {
+  color: var(--color-text-primary);
+}
+
+.final-cta-card__subtitle {
+  color: var(--color-text-secondary);
+}
+
+.final-cta-card__actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-top: var(--space-2);
+}
+
+.final-cta-btn {
+  height: 50px !important;
+  padding: 0 var(--space-8) !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  box-shadow: var(--shadow-tactile-accent) !important;
+}
+
+.final-cta-card__reassurance {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-top: var(--space-3);
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.reassurance-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Site Footer */
+.site-footer {
+  border-top: 1px solid var(--color-border-subtle);
+  background-color: var(--color-bg);
+  padding: var(--space-8) 0;
+  width: 100%;
+}
+
 .site-footer__inner {
-  max-width: 1100px;
-  margin: 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: var(--space-4);
+  width: 100%;
 }
-.site-footer__brand {
+
+.site-footer__brand-col {
   display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.site-footer__brand {
+  display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  color: var(--color-text-tertiary);
+  color: var(--color-text-primary);
 }
+
+.site-footer__wordmark {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
 .site-footer__tagline {
   color: var(--color-text-tertiary);
+}
+
+.site-footer__status-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+}
+
+.site-footer__beacon {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-secondary);
+}
+
+.beacon-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: var(--color-success);
+}
+
+.site-footer__copyright {
+  color: var(--color-text-tertiary);
+}
+
+@media (max-width: 640px) {
+  .final-cta-btn {
+    width: 100%;
+  }
+  .site-footer__status-col {
+    align-items: flex-start;
+  }
 }

@@ -1,154 +1,173 @@
+/* ============================================================
+   GOAL LIST — Syntara Redesign
+   ============================================================ */
+
 .goal-list {
-  padding: var(--space-4);
+  padding: 0 var(--space-4) var(--space-4) var(--space-4);
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-2);
 }
 
 .goal-list__header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
+}
+
+.goal-list__counter {
+  background-color: var(--color-surface-2);
+  color: var(--color-text-secondary);
+  padding: 1px 7px;
+  border-radius: var(--radius-full);
+  font-size: 10px;
+  border: 1px solid var(--color-border-subtle);
 }
 
 .goal-list__items {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  max-height: 240px;
+  gap: 6px;
+  max-height: 180px;
   overflow-y: auto;
 }
 
 .goal-list__empty {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-4) 0;
-  text-align: center;
+  gap: 8px;
+  padding: var(--space-3);
+  background-color: var(--color-surface-2);
+  border: 1px dashed var(--color-border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.goal-list__empty-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 
 .goal-item {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-1) var(--space-2);
+  gap: 8px;
+  padding: 6px 8px;
+  background-color: var(--color-surface-2);
+  border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-sm);
-  transition: background-color var(--duration-micro) var(--ease-standard);
-  position: relative;
+  transition: all var(--duration-fast) var(--ease-standard);
+  animation: fadeIn 180ms var(--ease-standard);
 }
 
 .goal-item:hover {
-  background-color: var(--color-surface-2);
+  border-color: var(--color-border-default);
+}
+
+.goal-item--completed {
+  opacity: 0.7;
+  background-color: var(--color-surface-1);
 }
 
 .goal-checkbox {
   width: 16px;
   height: 16px;
-  border-radius: 4px;
-  border: 1.5px solid var(--color-border-default);
-  display: inline-flex;
+  border-radius: var(--radius-xs);
+  border: 1.5px solid var(--color-border-strong);
+  background: none;
+  cursor: pointer;
+  display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
+  padding: 0;
   flex-shrink: 0;
-  color: #0A0804;
-  background-color: transparent;
-  transition: all var(--duration-standard) var(--ease-standard);
-}
-
-.goal-checkbox:hover {
-  border-color: var(--color-accent);
+  color: #090B0E;
+  transition: all var(--duration-fast) var(--ease-standard);
 }
 
 .goal-checkbox--checked {
   background-color: var(--color-accent);
   border-color: var(--color-accent);
-  transform: scale(1);
-  animation: checkboxPop var(--duration-standard) var(--ease-standard);
-}
-
-@keyframes checkboxPop {
-  0% { transform: scale(0.8); }
-  100% { transform: scale(1); }
 }
 
 .goal-item__text {
   flex: 1;
   color: var(--color-text-primary);
   cursor: pointer;
+  font-size: 12px;
   word-break: break-word;
-  transition: color var(--duration-standard) var(--ease-standard);
-  position: relative;
 }
 
 .goal-item--completed .goal-item__text {
-  color: var(--color-text-tertiary);
   text-decoration: line-through;
+  color: var(--color-text-tertiary);
 }
 
 .goal-item__delete {
-  opacity: 0;
+  background: none;
+  border: none;
   color: var(--color-text-tertiary);
   cursor: pointer;
   padding: 2px;
-  border-radius: 3px;
-  transition: all var(--duration-micro) var(--ease-standard);
-}
-
-.goal-item:hover .goal-item__delete {
-  opacity: 1;
+  display: flex;
+  align-items: center;
+  opacity: 0.6;
+  transition: opacity var(--duration-fast) var(--ease-standard);
 }
 
 .goal-item__delete:hover {
+  opacity: 1;
   color: var(--color-danger);
-  background-color: rgba(224, 108, 99, 0.1);
 }
 
+/* Add Goal Form */
 .goal-list__form {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  margin-top: var(--space-1);
+  gap: 4px;
+  margin-top: 2px;
 }
 
 .goal-list__input {
   flex: 1;
+  height: 30px;
   background-color: var(--color-surface-2);
-  border: var(--border-width-default) solid var(--color-border-default);
+  border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-sm);
-  padding: var(--space-1) var(--space-3);
-  font-size: 13px;
+  padding: 0 8px;
   color: var(--color-text-primary);
-  height: 32px;
-  transition: border-color var(--duration-standard) var(--ease-standard);
+  font-size: 12px;
+  font-family: var(--font-ui);
+  transition: border-color var(--duration-fast) var(--ease-standard);
 }
 
 .goal-list__input:focus {
-  border-color: var(--color-accent);
   outline: none;
+  border-color: var(--color-accent);
 }
 
 .goal-list__add-btn {
-  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
   border-radius: var(--radius-sm);
   background-color: var(--color-surface-2);
   border: 1px solid var(--color-border-default);
   color: var(--color-text-secondary);
   cursor: pointer;
-  transition: all var(--duration-micro) var(--ease-standard);
+  flex-shrink: 0;
+  transition: all var(--duration-fast) var(--ease-standard);
 }
 
 .goal-list__add-btn:hover:not(:disabled) {
-  color: var(--color-text-primary);
-  border-color: var(--color-border-strong);
+  background-color: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #090B0E;
 }
 
 .goal-list__add-btn:disabled {
-  opacity: 0.3;
+  opacity: 0.4;
   cursor: not-allowed;
 }

@@ -1,17 +1,12 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Copy, Check, ArrowRight, BookOpen, MessageCircle } from 'lucide-react';
+import { Copy, Check, ArrowRight, BookOpen, MessageCircle, Shield, Users } from 'lucide-react';
 import { socket } from '../../lib/socket';
 import { Modal } from '../../components/Modal';
 import { Input } from '../../components/Input';
 import { Select } from '../../components/Select';
 import { Button } from '../../components/Button';
 import './CreateRoomModal.css';
-
-const ROOM_TYPES = [
-  { value: 'STUDY', label: 'Study Room' },
-  { value: 'CHAT', label: 'Chat Room' },
-];
 
 const SUBJECTS = [
   { value: 'Data Structures', label: 'Data Structures' },
@@ -41,8 +36,8 @@ export function CreateRoomModal({ open, onClose }) {
   const [displayName, setDisplayName] = useState('');
   const [errors, setErrors] = useState({});
 
-  // Stable placeholder so it doesn't regenerate on every re-render
-  const guestPlaceholderRef = useRef(`Guest ${Math.floor(1000 + Math.random() * 9000)}`);
+  // Stable guest placeholder
+  const [guestPlaceholder] = useState(() => `Guest ${Math.floor(1000 + Math.random() * 9000)}`);
 
   const handleRoomTypeChange = useCallback((newType) => {
     setRoomType(newType);
@@ -117,7 +112,6 @@ export function CreateRoomModal({ open, onClose }) {
         setErrors({ general: response.error.message });
         return;
       }
-      // Save token
       const { room, participantToken } = response;
       const tokenKey = `syntara:session:${room.roomCode}`;
       sessionStorage.setItem(tokenKey, participantToken);
@@ -125,7 +119,6 @@ export function CreateRoomModal({ open, onClose }) {
       setStep('success');
     });
   };
-
 
   const handleCopy = useCallback(() => {
     if (!createdRoom?.roomCode) return;
@@ -154,15 +147,20 @@ export function CreateRoomModal({ open, onClose }) {
     <Modal
       open={open}
       onClose={handleClose}
-      title={step === 'success' ? undefined : 'Create a Room'}
+      title={step === 'success' ? undefined : 'Initialize Study Room'}
+      subtitle={step === 'success' ? undefined : 'Instant ephemeral session. Up to 50 co-learners.'}
       size="md"
       closeOnBackdrop={step !== 'form'}
     >
       {step === 'form' ? (
         <form onSubmit={handleSubmit} className="create-room-form" noValidate>
-          {/* Room Type Selector */}
-          <div key="field-room-type" className="create-room-type-group">
-            <label className="input-field__label">Room Mode</label>
+          {/* Room Mode Selector Cards */}
+          <div className="create-room-type-group">
+            <div className="create-room-type-label-row">
+              <label className="input-field__label">Select Room Mode</label>
+              <span className="text-caption text-tertiary">Switch anytime before creating</span>
+            </div>
+
             <div className="create-room-type-cards">
               <button
                 type="button"
@@ -170,12 +168,17 @@ export function CreateRoomModal({ open, onClose }) {
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => handleRoomTypeChange('STUDY')}
               >
-                <div className="create-room-type-card__icon">
-                  <BookOpen size={18} />
+                <div className="create-room-type-card__icon-wrap">
+                  <BookOpen size={18} className="mode-icon-study" />
                 </div>
                 <div className="create-room-type-card__text">
-                  <span className="create-room-type-card__title">Study Room</span>
-                  <span className="create-room-type-card__desc">Notes, Whiteboard, Timer, Goals & Quiz</span>
+                  <div className="create-room-type-card__header">
+                    <span className="create-room-type-card__title">Study Room</span>
+                    {roomType === 'STUDY' && <span className="mode-selected-pill">Active</span>}
+                  </div>
+                  <span className="create-room-type-card__desc">
+                    Notes, Whiteboard, Synced Timer, Shared Goals & Quiz
+                  </span>
                 </div>
               </button>
 
@@ -185,23 +188,34 @@ export function CreateRoomModal({ open, onClose }) {
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => handleRoomTypeChange('CHAT')}
               >
-                <div className="create-room-type-card__icon">
-                  <MessageCircle size={18} />
+                <div className="create-room-type-card__icon-wrap">
+                  <MessageCircle size={18} className="mode-icon-chat" />
                 </div>
                 <div className="create-room-type-card__text">
-                  <span className="create-room-type-card__title">Chat Room</span>
-                  <span className="create-room-type-card__desc">Casual chat, file sharing & documents</span>
+                  <div className="create-room-type-card__header">
+                    <span className="create-room-type-card__title">Chat Room</span>
+                    {roomType === 'CHAT' && <span className="mode-selected-pill">Active</span>}
+                  </div>
+                  <span className="create-room-type-card__desc">
+                    Casual discussion, instant messages & file sharing
+                  </span>
                 </div>
               </button>
             </div>
           </div>
 
-          <div key="field-room-name">
+          {/* Room Name Field */}
+          <div className="create-room-field-wrap">
+            <div className="create-room-field-header">
+              <label htmlFor="room-name" className="input-field__label">
+                Room Name <span className="required-star">*</span>
+              </label>
+              <span className="text-caption text-tertiary">{name.length}/40</span>
+            </div>
             <Input
               id="room-name"
-              label="Room name"
               type="text"
-              placeholder={roomType === 'STUDY' ? 'e.g. DSA Final Prep' : 'e.g. Project Discussion & Files'}
+              placeholder={roomType === 'STUDY' ? 'e.g. Algorithms & Complexity Review' : 'e.g. Weekend Project Jam'}
               value={name}
               onChange={handleNameChange}
               error={errors.name}
@@ -213,92 +227,141 @@ export function CreateRoomModal({ open, onClose }) {
 
           {/* Stable Study-specific fields container to prevent subtree remounting */}
           <div
-            key="field-study-options"
             className={`create-room-study-fields ${roomType === 'STUDY' ? 'create-room-study-fields--open' : ''}`}
             aria-hidden={roomType !== 'STUDY'}
           >
-            <Select
-              id="room-subject"
-              label="Subject"
-              options={SUBJECTS}
-              value={subject}
-              onChange={handleSubjectChange}
-              disabled={roomType !== 'STUDY'}
-              tabIndex={roomType !== 'STUDY' ? -1 : undefined}
-            />
-            {subject === 'Custom' && (
-              <Input
-                id="room-custom-subject"
-                label="Custom subject"
-                type="text"
-                placeholder="e.g. Organic Chemistry"
-                value={customSubject}
-                onChange={handleCustomSubjectChange}
-                error={errors.customSubject}
-                maxLength={30}
-                autoComplete="off"
+            <div className="create-room-field-wrap">
+              <Select
+                id="room-subject"
+                label="Primary Subject"
+                options={SUBJECTS}
+                value={subject}
+                onChange={handleSubjectChange}
                 disabled={roomType !== 'STUDY'}
                 tabIndex={roomType !== 'STUDY' ? -1 : undefined}
               />
+            </div>
+
+            {subject === 'Custom' && (
+              <div className="create-room-field-wrap">
+                <Input
+                  id="room-custom-subject"
+                  label="Custom Subject Name"
+                  type="text"
+                  placeholder="e.g. Quantum Computing"
+                  value={customSubject}
+                  onChange={handleCustomSubjectChange}
+                  error={errors.customSubject}
+                  maxLength={30}
+                  autoComplete="off"
+                  disabled={roomType !== 'STUDY'}
+                  tabIndex={roomType !== 'STUDY' ? -1 : undefined}
+                />
+              </div>
             )}
           </div>
 
-          <div key="field-display-name">
+          {/* Display Name Field */}
+          <div className="create-room-field-wrap">
             <Input
               id="room-display-name"
-              label="Your name (optional)"
+              label="Your Display Name (Optional)"
               type="text"
-              placeholder={guestPlaceholderRef.current}
+              placeholder={guestPlaceholder}
               value={displayName}
               onChange={handleDisplayNameChange}
               maxLength={24}
               autoComplete="off"
+              hint="You can always change your avatar and handle inside the room"
             />
           </div>
 
           {errors.general && (
-            <p className="create-room-form__error text-body-sm" role="alert">{errors.general}</p>
+            <div className="create-room-form__error text-body-sm" role="alert">
+              {errors.general}
+            </div>
           )}
 
-          <Button type="submit" fullWidth loading={loading} size="lg" id="create-room-submit">
-            {loading ? 'Creating…' : 'Create Room'}
-          </Button>
+          {/* Submit Action */}
+          <div className="create-room-submit-wrap">
+            <Button
+              type="submit"
+              fullWidth
+              loading={loading}
+              size="lg"
+              id="create-room-submit"
+              className="create-room-submit-btn"
+            >
+              <span>{loading ? 'Generating Room…' : 'Create Room Now'}</span>
+              {!loading && <ArrowRight size={18} />}
+            </Button>
+            <p className="create-room-footnote text-caption">
+              ⚡ Room link & code will be immediately ready to copy
+            </p>
+          </div>
         </form>
       ) : (
+        /* Success Screen: Elegant Access Pass / Ticket */
         <div className="create-room-success">
-          <div className="create-room-success__badge-row">
-            <span className="create-room-success__mode-badge text-label">
-              {createdRoom?.type === 'CHAT' ? 'Chat Room' : 'Study Room'}
-            </span>
-            <span className="text-caption text-tertiary uppercase tracking-wider">Created</span>
+          <div className="create-room-success__ticket">
+            <div className="create-room-success__ticket-header">
+              <div className="ticket-badge-wrap">
+                <span className="ticket-badge text-label">
+                  {createdRoom?.type === 'CHAT' ? 'Chat Room' : 'Study Room'}
+                </span>
+                <span className="ticket-live-pill">
+                  <span className="live-pulse-dot" /> Live
+                </span>
+              </div>
+              <span className="text-caption text-tertiary">Syntara Pass</span>
+            </div>
+
+            <h3 className="create-room-success__title text-display-md">
+              {createdRoom?.name}
+            </h3>
+
+            {createdRoom?.subject && (
+              <p className="create-room-success__subject text-body-sm">
+                Subject: <strong>{createdRoom.subject}</strong>
+              </p>
+            )}
+
+            {/* Room Code High-Visibility Voucher */}
+            <div className="create-room-success__code-voucher">
+              <div className="voucher-code-label text-label">INVITE CODE</div>
+              <div className="voucher-code-digits text-mono">
+                {createdRoom?.roomCode}
+              </div>
+              <button
+                type="button"
+                className={`voucher-copy-btn ${copied ? 'voucher-copy-btn--copied' : ''}`}
+                onClick={handleCopy}
+                aria-label={copied ? 'Code copied' : 'Copy room code'}
+              >
+                {copied ? <Check size={16} /> : <Copy size={16} />}
+                <span>{copied ? 'Code Copied!' : 'Copy Code'}</span>
+              </button>
+            </div>
+
+            <div className="create-room-success__perks">
+              <div className="perk-item">
+                <Shield size={13} className="text-accent" />
+                <span className="text-caption">Ephemeral Session</span>
+              </div>
+              <div className="perk-item">
+                <Users size={13} className="text-accent" />
+                <span className="text-caption">Up to 50 Participants</span>
+              </div>
+            </div>
           </div>
-
-          <h2 className="text-display-md" style={{ color: 'var(--color-text-primary)' }}>
-            {createdRoom?.name}
-          </h2>
-
-          <div className="create-room-success__code-block">
-            <span className="create-room-success__code">{createdRoom?.roomCode}</span>
-            <button
-              type="button"
-              className="create-room-success__copy-btn"
-              onClick={handleCopy}
-              aria-label={copied ? 'Copied' : 'Copy room code'}
-            >
-              {copied ? <Check size={16} /> : <Copy size={16} />}
-              <span>{copied ? 'Copied' : 'Copy'}</span>
-            </button>
-          </div>
-
-          <p className="text-body-sm" style={{ color: 'var(--color-text-secondary)', textAlign: 'center' }}>
-            Share this code with your group. The room expires in {createdRoom?.durationMin >= 60 ? `${Math.floor(createdRoom.durationMin / 60)}h` : `${createdRoom?.durationMin}m`}.
-          </p>
 
           <div className="create-room-success__actions">
-            <Button variant="ghost" onClick={handleClose}>Close</Button>
-            <Button onClick={handleEnter} id="enter-room-btn">
-              Enter Room
-              <ArrowRight size={16} aria-hidden="true" />
+            <Button variant="secondary" onClick={handleClose} size="lg">
+              Done
+            </Button>
+            <Button onClick={handleEnter} size="lg" id="enter-room-btn" className="enter-room-btn">
+              <span>Enter Room</span>
+              <ArrowRight size={18} />
             </Button>
           </div>
         </div>
@@ -306,4 +369,3 @@ export function CreateRoomModal({ open, onClose }) {
     </Modal>
   );
 }
-
