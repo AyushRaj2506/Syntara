@@ -6,17 +6,18 @@ const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
 const { roomStore } = require('./rooms/RoomStore');
 
-const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN ?? 'http://localhost:5173';
+const rawOrigins = process.env.CLIENT_ORIGIN ?? 'http://localhost:5173';
+const CLIENT_ORIGINS = rawOrigins.split(',').map((s) => s.trim()).filter(Boolean);
 
 const app = express();
 
-// Allow both localhost and 127.0.0.1 — browsers treat them as different origins
-// and the vite dev server may be accessed via either hostname.
-const ALLOWED_ORIGINS = [
-  CLIENT_ORIGIN,
-  CLIENT_ORIGIN.replace('localhost', '127.0.0.1'),
-  CLIENT_ORIGIN.replace('127.0.0.1', 'localhost'),
-].filter(Boolean);
+const ALLOWED_ORIGINS = Array.from(new Set([
+  ...CLIENT_ORIGINS,
+  ...CLIENT_ORIGINS.flatMap((o) => [
+    o.replace('localhost', '127.0.0.1'),
+    o.replace('127.0.0.1', 'localhost'),
+  ]),
+]));
 
 app.use(cors({
   origin: (origin, cb) => {
