@@ -213,6 +213,7 @@ export function Chat({
   };
 
   const handleSendFiles = async (filesToSend) => {
+    setTransferError('');
     for (const file of filesToSend) {
       try {
         const messageId = crypto.randomUUID();
@@ -228,7 +229,8 @@ export function Chat({
         actions.sendChat('', filePayload, messageId);
       } catch (err) {
         console.error('[chat] File send failed:', err);
-        setTransferError(`Failed to send "${file.name}". Please retry.`);
+        const errMsg = err?.message || 'Please retry.';
+        setTransferError(`Failed to send "${file.name}": ${errMsg}`);
       }
     }
     scrollToBottom();
@@ -467,6 +469,7 @@ export function Chat({
                     <ChatMessage
                       msg={msg}
                       meId={meId}
+                      transfers={transfers}
                       isGrouped={isSameSender}
                       isChatRoom={isChatRoom}
                     />
@@ -625,7 +628,13 @@ export function Chat({
   );
 }
 
-function ChatMessage({ msg, meId, isGrouped, isChatRoom = false }) {
+function ChatMessage({
+  msg,
+  meId,
+  transfers = {},
+  isGrouped,
+  isChatRoom,
+}) {
   const [copiedText, setCopiedText] = useState(false);
 
   // System Events (joins, leaves, room lifecycle)
@@ -641,7 +650,9 @@ function ChatMessage({ msg, meId, isGrouped, isChatRoom = false }) {
 
   const isMine = msg.participantId === meId;
   const file = msg.file;
+  const transfer = transfers?.[file?.fileId];
   const fileUrl =
+    transfer?.url ||
     file?.fullUrl ||
     (file?.url
       ? file.url.startsWith('http') || file.url.startsWith('blob:')
