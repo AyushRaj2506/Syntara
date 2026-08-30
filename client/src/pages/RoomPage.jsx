@@ -15,6 +15,7 @@ export function RoomPage() {
   const [nameEntered, setNameEntered] = useState(() => {
     return !!sessionStorage.getItem('syntara:displayName');
   });
+  const [guestPlaceholder] = useState(() => `Guest ${Math.floor(1000 + Math.random() * 9000)}`);
 
   const formattedCode = roomCode ? roomCode.toUpperCase() : '';
 
@@ -28,11 +29,12 @@ export function RoomPage() {
     e.preventDefault();
     const finalName = displayName.trim() || guestPlaceholder;
     sessionStorage.setItem('syntara:displayName', finalName);
-    setSubmittedName(finalName);
+    setDisplayName(finalName);
+    setNameEntered(true);
   };
 
   // If user hasn't set their name in this session yet, show lightweight inline modal/prompt
-  if (!submittedName) {
+  if (!nameEntered) {
     return (
       <div className="room-join-name-prompt">
         <div className="room-join-name-card glass-panel">

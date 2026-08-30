@@ -93,7 +93,7 @@ export function CreateRoomModal({ open, onClose }) {
     setLoading(true);
     if (!socket.connected) socket.connect();
 
-    const finalDisplayName = displayName.trim() || guestPlaceholderRef.current;
+    const finalDisplayName = displayName.trim() || guestPlaceholder;
     sessionStorage.setItem('syntara:displayName', finalDisplayName);
 
     const payload = {
