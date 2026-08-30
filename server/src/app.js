@@ -77,13 +77,15 @@ app.post('/api/upload', (req, res) => {
     }
 
   const { roomId } = req.body;
-  if (roomId) {
-    const room = roomStore.getById(roomId);
+  let resolvedRoomId = roomId || 'global';
+  if (roomId && roomId !== 'global') {
+    const room = roomStore.getById(roomId) || roomStore.getByCode(roomId);
     if (!room) {
       // Remove uploaded file if room doesn't exist
       try { fs.unlinkSync(req.file.path); } catch {}
       return res.status(404).json({ error: 'Room not found' });
     }
+    resolvedRoomId = room.roomId;
   }
 
   const fileData = {
@@ -91,7 +93,7 @@ app.post('/api/upload', (req, res) => {
     fileName: req.file.originalname,
     fileSize: req.file.size,
     fileType: req.file.mimetype,
-    url: `/api/files/${roomId || 'global'}/${req.file.filename}`,
+    url: `/api/files/${resolvedRoomId}/${req.file.filename}`,
   };
 
   res.json({ file: fileData });
@@ -101,7 +103,22 @@ app.post('/api/upload', (req, res) => {
 // Serve uploaded file with streaming & download support
 app.get('/api/files/:roomId/:filename', (req, res) => {
   const { roomId, filename } = req.params;
-  const filePath = path.join(UPLOAD_DIR, roomId, filename);
+  const possiblePaths = [
+    path.join(UPLOAD_DIR, roomId, filename),
+    path.join(UPLOAD_DIR, filename),
+  ];
+  if (roomId && roomId !== 'global') {
+    const room = roomStore.getById(roomId) || roomStore.getByCode(roomId);
+    if (room) {
+      possiblePaths.push(path.join(UPLOAD_DIR, room.roomId, filename));
+      possiblePaths.push(path.join(UPLOAD_DIR, room.roomCode, filename));
+    }
+  }
+
+  const filePath = possiblePaths.find((p) => fs.existsSync(p));
+  if (!filePath) {
+    return res.status(404).json({ error: 'File not found or expired' });
+  }
 
   // Security check: path traversal prevention
   const resolved = path.resolve(filePath);
@@ -109,11 +126,7 @@ app.get('/api/files/:roomId/:filename', (req, res) => {
     return res.status(403).json({ error: 'Access denied' });
   }
 
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).json({ error: 'File not found or expired' });
-  }
-
-  res.sendFile(filePath);
+  res.sendFile(resolved);
 });
 
 // Code execution: proxies to Wandbox sandboxed compiler & runtime (GCC 13.2.0 / C++20, CPython).

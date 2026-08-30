@@ -8,6 +8,9 @@ const ICE_SERVERS = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
   { urls: 'stun:stun2.l.google.com:19302' },
+  { urls: 'stun:stun3.l.google.com:19302' },
+  { urls: 'stun:stun4.l.google.com:19302' },
+  { urls: 'stun:stun.cloudflare.com:3478' },
 ];
 
 /**
@@ -16,7 +19,7 @@ const ICE_SERVERS = [
  * @param {{
  *   roomId?: string,
  *   myParticipantId?: string,
- *   participants?: Record<string, any>,
+ *   participants?: Record<string, any> | any[],
  *   onFileReceived?: (fileData: {
  *     transferId: string,
  *     fileName: string,
@@ -40,6 +43,8 @@ export function useWebRTCFileTransfer({
   const peerConnectionsRef = useRef(new Map());
   // Map of data channels: participantId -> RTCDataChannel
   const dataChannelsRef = useRef(new Map());
+  // Map of queued ICE candidates arriving before setRemoteDescription: participantId -> candidate[]
+  const pendingCandidatesRef = useRef(new Map());
 
   // Active in-progress transfers (both sending and receiving)
   // transferId -> { id, fileName, fileSize, fileType, progress, status, error, isSender, blob, url }
@@ -62,6 +67,7 @@ export function useWebRTCFileTransfer({
       return peerConnectionsRef.current.get(targetParticipantId);
     }
 
+    console.log(`[webrtc] Creating RTCPeerConnection to peer: ${targetParticipantId} (initiator: ${isInitiator})`);
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
     peerConnectionsRef.current.set(targetParticipantId, pc);
 
@@ -74,17 +80,29 @@ export function useWebRTCFileTransfer({
       }
     };
 
+    pc.oniceconnectionstatechange = () => {
+      console.log(`[webrtc] ICE connection state with ${targetParticipantId}: ${pc.iceConnectionState}`);
+    };
+
+    pc.onconnectionstatechange = () => {
+      console.log(`[webrtc] Peer connection state with ${targetParticipantId}: ${pc.connectionState}`);
+    };
+
     const setupDataChannel = (dc) => {
       dc.binaryType = 'arraybuffer';
       dataChannelsRef.current.set(targetParticipantId, dc);
 
       dc.onopen = () => {
-        console.log(`[webrtc] DataChannel open with peer: ${targetParticipantId}`);
+        console.log(`[webrtc] DataChannel OPEN with peer: ${targetParticipantId}`);
       };
 
       dc.onclose = () => {
-        console.log(`[webrtc] DataChannel closed with peer: ${targetParticipantId}`);
+        console.log(`[webrtc] DataChannel CLOSED with peer: ${targetParticipantId}`);
         dataChannelsRef.current.delete(targetParticipantId);
+      };
+
+      dc.onerror = (err) => {
+        console.warn(`[webrtc] DataChannel ERROR with peer ${targetParticipantId}:`, err);
       };
 
       dc.onmessage = (event) => {
@@ -107,6 +125,7 @@ export function useWebRTCFileTransfer({
         .catch((err) => console.warn('[webrtc] Create offer error:', err));
     } else {
       pc.ondatachannel = (event) => {
+        console.log(`[webrtc] Received DataChannel from peer: ${targetParticipantId}`);
         setupDataChannel(event.channel);
       };
     }
@@ -164,7 +183,7 @@ export function useWebRTCFileTransfer({
       try {
         const headerLength = 36; // transferId string length
         const decoder = new TextDecoder();
-        const transferId = decoder.decode(new Uint8Array(data, 0, headerLength));
+        const transferId = decoder.decode(new Uint8Array(data, 0, headerLength)).trim();
         const chunkData = data.slice(headerLength);
 
         const current = incomingTransfersRef.current.get(transferId);
@@ -240,7 +259,26 @@ export function useWebRTCFileTransfer({
 
       try {
         if (signal.type === 'offer') {
+          // If connection was already in stable or another state, check state
+          if (pc.signalingState !== 'stable') {
+            await Promise.all([
+              pc.setLocalDescription({ type: 'rollback' }).catch(() => {}),
+            ]);
+          }
+
           await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+
+          // Flush any pending ICE candidates queued before remoteDescription was set
+          const pending = pendingCandidatesRef.current.get(senderParticipantId) || [];
+          for (const cand of pending) {
+            try {
+              await pc.addIceCandidate(new RTCIceCandidate(cand));
+            } catch (e) {
+              console.warn('[webrtc] Pending ICE add error:', e);
+            }
+          }
+          pendingCandidatesRef.current.delete(senderParticipantId);
+
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
           socket.emit('webrtc:signal', {
@@ -248,10 +286,31 @@ export function useWebRTCFileTransfer({
             signal: { type: 'answer', sdp: pc.localDescription },
           });
         } else if (signal.type === 'answer') {
-          await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+          if (pc.signalingState === 'have-local-offer') {
+            await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+
+            // Flush any pending ICE candidates
+            const pending = pendingCandidatesRef.current.get(senderParticipantId) || [];
+            for (const cand of pending) {
+              try {
+                await pc.addIceCandidate(new RTCIceCandidate(cand));
+              } catch (e) {
+                console.warn('[webrtc] Pending ICE add error:', e);
+              }
+            }
+            pendingCandidatesRef.current.delete(senderParticipantId);
+          }
         } else if (signal.type === 'ice') {
           if (signal.candidate) {
-            await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+            if (!pc.remoteDescription) {
+              const pending = pendingCandidatesRef.current.get(senderParticipantId) || [];
+              pending.push(signal.candidate);
+              pendingCandidatesRef.current.set(senderParticipantId, pending);
+            } else {
+              await pc.addIceCandidate(new RTCIceCandidate(signal.candidate)).catch((err) => {
+                console.warn('[webrtc] addIceCandidate error:', err);
+              });
+            }
           }
         }
       } catch (err) {
@@ -260,7 +319,6 @@ export function useWebRTCFileTransfer({
     };
 
     const handleFileAnnounce = (announce) => {
-      // Remote peer started file upload or P2P announcement
       const { transferId, fileName, fileSize, fileType, caption, senderDisplayName, senderParticipantId } = announce;
       setTransfers((prev) => ({
         ...prev,
@@ -291,7 +349,13 @@ export function useWebRTCFileTransfer({
   // Initiate peer connections to other participants when room participants change
   useEffect(() => {
     if (!myParticipantId) return;
-    const peerIds = Object.keys(participants).filter((id) => id !== myParticipantId);
+
+    // Extract valid string peer IDs regardless of whether participants is Object or Array
+    const peerIds = Array.isArray(participants)
+      ? participants
+          .map((p) => (typeof p === 'string' ? p : p?.participantId))
+          .filter((id) => Boolean(id) && id !== myParticipantId)
+      : Object.keys(participants).filter((id) => id !== myParticipantId);
 
     peerIds.forEach((targetId) => {
       // Deterministic initiator: lexicographically smaller participantId creates offer
@@ -302,10 +366,16 @@ export function useWebRTCFileTransfer({
 
     // Cleanup disconnected peers
     for (const [id, pc] of peerConnectionsRef.current.entries()) {
-      if (!participants[id]) {
+      const isPresent = Array.isArray(participants)
+        ? participants.some((p) => (typeof p === 'string' ? p === id : p?.participantId === id))
+        : Boolean(participants[id]);
+
+      if (!isPresent) {
+        console.log(`[webrtc] Closing peer connection to departed peer: ${id}`);
         pc.close();
         peerConnectionsRef.current.delete(id);
         dataChannelsRef.current.delete(id);
+        pendingCandidatesRef.current.delete(id);
       }
     }
   }, [participants, myParticipantId, createPeerConnection]);
