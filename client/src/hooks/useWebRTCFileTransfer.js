@@ -303,8 +303,53 @@ export function useWebRTCFileTransfer({
   }, [participants, myParticipantId, createPeerConnection]);
 
   /**
+   * Wait up to `timeoutMs` for any data channel to open.
+   * Returns the list of open channels, or empty array on timeout.
+   */
+  const waitForAnyChannelOpen = useCallback((timeoutMs = 5000) => {
+    return new Promise((resolve) => {
+      const open = Array.from(dataChannelsRef.current.values()).filter(
+        (dc) => dc.readyState === 'open'
+      );
+      if (open.length > 0) {
+        resolve(open);
+        return;
+      }
+
+      // Check if any channel is in connecting state — worth waiting
+      const connecting = Array.from(dataChannelsRef.current.values()).filter(
+        (dc) => dc.readyState === 'connecting'
+      );
+      if (connecting.length === 0) {
+        resolve([]);
+        return;
+      }
+
+      const cleanups = [];
+      const done = (channels) => {
+        cleanups.forEach((fn) => fn());
+        resolve(channels);
+      };
+
+      const timeout = setTimeout(() => done([]), timeoutMs);
+      cleanups.push(() => clearTimeout(timeout));
+
+      for (const dc of connecting) {
+        const onOpen = () => {
+          const nowOpen = Array.from(dataChannelsRef.current.values()).filter(
+            (d) => d.readyState === 'open'
+          );
+          done(nowOpen);
+        };
+        dc.addEventListener('open', onOpen);
+        cleanups.push(() => dc.removeEventListener('open', onOpen));
+      }
+    });
+  }, []);
+
+  /**
    * Send a file using WebRTC DataChannel chunking with backpressure.
-   * Fallbacks seamlessly to REST upload if WebRTC data channels are not open.
+   * Waits up to 5s for channel negotiation before falling back to REST upload.
    *
    * @param {File} file
    * @param {string} [caption]
@@ -313,11 +358,8 @@ export function useWebRTCFileTransfer({
   const sendFile = useCallback(async (file, caption = '') => {
     const transferId = crypto.randomUUID();
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-    const openChannels = Array.from(dataChannelsRef.current.values()).filter(
-      (dc) => dc.readyState === 'open'
-    );
 
-    // Initial state: SELECTED -> PREPARING -> SENDING
+    // Initial state: PREPARING
     setTransfers((prev) => ({
       ...prev,
       [transferId]: {
@@ -340,6 +382,9 @@ export function useWebRTCFileTransfer({
       fileType: file.type || 'application/octet-stream',
       caption,
     });
+
+    // Wait for open channels (up to 5s for P2P negotiation to complete)
+    const openChannels = await waitForAnyChannelOpen(5000);
 
     // If active WebRTC channels are available, stream chunks over DataChannel
     if (openChannels.length > 0) {
@@ -366,8 +411,15 @@ export function useWebRTCFileTransfer({
       // Stream file slices
       const encoder = new TextEncoder();
       const headerBytes = encoder.encode(transferId.padEnd(36, ' '));
+      let lastProgress = -1;
+      let activeChannels = openChannels.length;
 
       for (let i = 0; i < totalChunks; i++) {
+        // If all channels closed during transfer, abort
+        if (activeChannels === 0) {
+          throw new Error('All peers disconnected during transfer');
+        }
+
         const start = i * CHUNK_SIZE;
         const end = Math.min(start + CHUNK_SIZE, file.size);
         const slice = file.slice(start, end);
@@ -378,9 +430,12 @@ export function useWebRTCFileTransfer({
         combined.set(headerBytes, 0);
         combined.set(new Uint8Array(arrayBuffer), headerBytes.length);
 
+        activeChannels = 0;
+
         // Check backpressure on all open data channels
         for (const dc of openChannels) {
           if (dc.readyState === 'open') {
+            activeChannels++;
             if (dc.bufferedAmount > BUFFERED_AMOUNT_HIGH_WATERMARK) {
               await new Promise((resolve) => {
                 const onLow = () => {
@@ -395,23 +450,27 @@ export function useWebRTCFileTransfer({
               dc.send(combined.buffer);
             } catch (err) {
               console.warn('[webrtc] Error sending chunk:', err);
+              dc.close();
             }
           }
         }
 
         const progress = Math.min(100, Math.round(((i + 1) / totalChunks) * 100));
-        setTransfers((prev) => {
-          const current = prev[transferId];
-          if (!current) return prev;
-          return {
-            ...prev,
-            [transferId]: {
-              ...current,
-              progress,
-              status: progress >= 100 ? 'SENT' : 'PROGRESS',
-            },
-          };
-        });
+        if (progress > lastProgress || i === totalChunks - 1) {
+          lastProgress = progress;
+          setTransfers((prev) => {
+            const current = prev[transferId];
+            if (!current) return prev;
+            return {
+              ...prev,
+              [transferId]: {
+                ...current,
+                progress,
+                status: progress >= 100 ? 'SENT' : 'PROGRESS',
+              },
+            };
+          });
+        }
       }
 
       // Create local object URL for instant preview
@@ -475,7 +534,7 @@ export function useWebRTCFileTransfer({
       }));
       throw err;
     }
-  }, [roomId]);
+  }, [roomId, waitForAnyChannelOpen]);
 
   return {
     transfers,

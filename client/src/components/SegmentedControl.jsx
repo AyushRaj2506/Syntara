@@ -48,6 +48,7 @@ export const SegmentedControl = memo(function SegmentedControl({ options, value,
               aria-checked={selected}
               tabIndex={selected ? 0 : -1}
               className={`seg-control__option ${selected ? 'seg-control__option--selected' : ''}`}
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => onChange(opt.value)}
               onKeyDown={(e) => handleKeyDown(e, idx)}
             >

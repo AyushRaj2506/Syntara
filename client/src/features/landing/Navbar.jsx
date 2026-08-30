@@ -16,7 +16,7 @@ export function Navbar({ onCreateRoom }) {
 
   const openJoin = () => {
     setJoinOpen(true);
-    setTimeout(() => inputRef.current?.focus(), 50);
+    // No setTimeout focus hack — the input uses autoFocus when it appears
   };
 
   const handleJoinSubmit = (e) => {
@@ -40,7 +40,7 @@ export function Navbar({ onCreateRoom }) {
         {joinOpen ? (
           <form className="navbar__join-form" onSubmit={handleJoinSubmit} role="search">
             <input
-              ref={inputRef}
+              autoFocus
               className={`navbar__join-input ${error ? 'navbar__join-input--error' : ''}`}
               type="text"
               placeholder="e.g. DSA-7X92"

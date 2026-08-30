@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Users, X } from 'lucide-react';
 import { useRoom } from '../../hooks/useRoom';
@@ -59,10 +59,18 @@ export function RoomLayout() {
     }
   }, [isChatMode]);
 
+  // Track whether we have already had a successful first connection so
+  // the "Connection restored" toast only fires on actual RECONNECTS.
+  const hasConnectedOnceRef = useRef(false);
+
   // Connection status toasts
   useEffect(() => {
     if (connectionStatus === 'connected' && room) {
-      addToast({ message: 'Connection restored', type: 'success' });
+      if (hasConnectedOnceRef.current) {
+        addToast({ message: 'Connection restored', type: 'success' });
+      } else {
+        hasConnectedOnceRef.current = true;
+      }
     }
   }, [connectionStatus]); // eslint-disable-line
 
@@ -330,11 +338,14 @@ export function RoomLayout() {
             ))}
       </nav>
 
-      {/* Mobile content */}
+      {/* Mobile content — persistent panes, no remounting on tab switch */}
       <div className="mobile-content">
         {isChatMode ? (
           <>
-            {mobileTab === 'chat' && (
+            <div
+              className={`mobile-pane ${mobileTab === 'chat' ? 'mobile-pane--active' : ''}`}
+              aria-hidden={mobileTab !== 'chat'}
+            >
               <Chat
                 messages={chatMessages}
                 meId={me?.participantId}
@@ -344,27 +355,43 @@ export function RoomLayout() {
                 roomId={room.roomId}
                 isChatRoom={true}
               />
-            )}
-            {mobileTab === 'members' && (
-              <div style={{ padding: 'var(--space-4)', overflowY: 'auto' }}>
-                <ParticipantList participants={participants} hostId={room.hostId} />
-              </div>
-            )}
+            </div>
+            <div
+              className={`mobile-pane ${mobileTab === 'members' ? 'mobile-pane--active' : ''}`}
+              aria-hidden={mobileTab !== 'members'}
+              style={{ overflowY: 'auto', padding: 'var(--space-4)' }}
+            >
+              <ParticipantList participants={participants} hostId={room.hostId} />
+            </div>
           </>
         ) : (
           <>
-            {mobileTab === 'notes' && <StudyNotes initialContent={room.sharedNotes} actions={actions} />}
-            {mobileTab === 'whiteboard' && (
+            <div
+              className={`mobile-pane ${mobileTab === 'notes' ? 'mobile-pane--active' : ''}`}
+              aria-hidden={mobileTab !== 'notes'}
+            >
+              <StudyNotes initialContent={room.sharedNotes} actions={actions} />
+            </div>
+            <div
+              className={`mobile-pane ${mobileTab === 'whiteboard' ? 'mobile-pane--active' : ''}`}
+              aria-hidden={mobileTab !== 'whiteboard'}
+            >
               <Whiteboard
                 initialStrokes={room.whiteboardState}
                 participantId={me?.participantId}
                 actions={actions}
               />
-            )}
-            {mobileTab === 'code' && (
+            </div>
+            <div
+              className={`mobile-pane ${mobileTab === 'code' ? 'mobile-pane--active' : ''}`}
+              aria-hidden={mobileTab !== 'code'}
+            >
               <CodeScratchpad initialCodeState={room.codeState} actions={actions} />
-            )}
-            {mobileTab === 'chat' && (
+            </div>
+            <div
+              className={`mobile-pane ${mobileTab === 'chat' ? 'mobile-pane--active' : ''}`}
+              aria-hidden={mobileTab !== 'chat'}
+            >
               <Chat
                 messages={chatMessages}
                 meId={me?.participantId}
@@ -373,16 +400,23 @@ export function RoomLayout() {
                 onFocus={markChatRead}
                 roomId={room.roomId}
               />
-            )}
-            {mobileTab === 'focus' && (
+            </div>
+            <div
+              className={`mobile-pane ${mobileTab === 'focus' ? 'mobile-pane--active' : ''}`}
+              aria-hidden={mobileTab !== 'focus'}
+            >
               <FocusTimer focusSession={focusSession} isHost={isHost} actions={actions} fullScreen />
-            )}
-            {mobileTab === 'goals' && (
+            </div>
+            <div
+              className={`mobile-pane ${mobileTab === 'goals' ? 'mobile-pane--active' : ''}`}
+              aria-hidden={mobileTab !== 'goals'}
+            >
               <GoalList goals={goals} meId={me?.participantId} hostId={room.hostId} actions={actions} />
-            )}
+            </div>
           </>
         )}
       </div>
+
     </div>
   );
 }

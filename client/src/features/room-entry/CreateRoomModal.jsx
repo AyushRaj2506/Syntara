@@ -204,6 +204,7 @@ export function CreateRoomModal({ open, onClose }) {
               <button
                 type="button"
                 className={`create-room-type-card ${roomType === 'STUDY' ? 'create-room-type-card--active' : ''}`}
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => handleRoomTypeChange('STUDY')}
               >
                 <div className="create-room-type-card__icon">
@@ -218,6 +219,7 @@ export function CreateRoomModal({ open, onClose }) {
               <button
                 type="button"
                 className={`create-room-type-card ${roomType === 'CHAT' ? 'create-room-type-card--active' : ''}`}
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => handleRoomTypeChange('CHAT')}
               >
                 <div className="create-room-type-card__icon">
@@ -259,6 +261,7 @@ export function CreateRoomModal({ open, onClose }) {
               value={subject}
               onChange={handleSubjectChange}
               disabled={roomType !== 'STUDY'}
+              tabIndex={roomType !== 'STUDY' ? -1 : undefined}
             />
             {subject === 'Custom' && (
               <Input
@@ -272,6 +275,7 @@ export function CreateRoomModal({ open, onClose }) {
                 maxLength={30}
                 autoComplete="off"
                 disabled={roomType !== 'STUDY'}
+                tabIndex={roomType !== 'STUDY' ? -1 : undefined}
               />
             )}
           </div>

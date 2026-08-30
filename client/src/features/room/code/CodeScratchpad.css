@@ -86,6 +86,27 @@
   background-color: rgba(224, 108, 99, 0.1);
 }
 
+.code-action-btn--confirm-yes {
+  color: var(--color-success);
+  border-color: var(--color-success);
+  background-color: rgba(111, 191, 139, 0.1);
+}
+
+.code-confirm-group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-elevated);
+  border: 1px solid var(--color-border-default);
+}
+
+.code-confirm-label {
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
 /* Editor layout */
 .code-scratchpad__editor {
   flex: 1;
