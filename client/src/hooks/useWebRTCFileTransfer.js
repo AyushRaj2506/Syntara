@@ -223,7 +223,10 @@ export function useWebRTCFileTransfer({
       }
     }
   };
-  handleIncomingDataRef.current = handleIncomingData;
+
+  useEffect(() => {
+    handleIncomingDataRef.current = handleIncomingData;
+  });
 
   // Socket signaling listener
   useEffect(() => {
