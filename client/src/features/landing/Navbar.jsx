@@ -87,7 +87,7 @@ export function Navbar({ onCreateRoom }) {
       return;
     }
 
-    const finalName = displayName.trim() || guestPlaceholderRef.current;
+    const finalName = displayName.trim() || guestPlaceholder;
     sessionStorage.setItem('syntara:displayName', finalName);
 
     setJoinOpen(false);
