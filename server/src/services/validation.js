@@ -28,8 +28,8 @@ const createRoomSchema = z.object({
     .max(30)
     .transform((s) => s.replace(/[\x00-\x1F\x7F]/g, '').trim())
     .optional(),
-  durationMin: z.number().int().min(5).max(1440),
-  maxParticipants: z.number().int().min(2).max(100),
+  durationMin: z.number().int().min(5).max(1440).default(360),
+  maxParticipants: z.number().int().min(2).max(100).default(50),
   displayName: z
     .string()
     .min(1)

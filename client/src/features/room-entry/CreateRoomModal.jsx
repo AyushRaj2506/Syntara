@@ -5,7 +5,6 @@ import { socket } from '../../lib/socket';
 import { Modal } from '../../components/Modal';
 import { Input } from '../../components/Input';
 import { Select } from '../../components/Select';
-import { SegmentedControl } from '../../components/SegmentedControl';
 import { Button } from '../../components/Button';
 import './CreateRoomModal.css';
 
@@ -26,34 +25,6 @@ const SUBJECTS = [
   { value: 'Custom', label: 'Custom…' },
 ];
 
-const STUDY_DURATION_OPTIONS = [
-  { value: 25, label: '25 min' },
-  { value: 50, label: '50 min' },
-  { value: 90, label: '90 min' },
-  { value: 120, label: '2 hours' },
-];
-
-const CHAT_DURATION_OPTIONS = [
-  { value: 60, label: '1 hour' },
-  { value: 180, label: '3 hours' },
-  { value: 360, label: '6 hours' },
-  { value: 1440, label: '24 hours' },
-];
-
-const STUDY_PARTICIPANT_OPTIONS = [
-  { value: 2, label: '2' },
-  { value: 4, label: '4' },
-  { value: 6, label: '6' },
-  { value: 8, label: '8' },
-];
-
-const CHAT_PARTICIPANT_OPTIONS = [
-  { value: 10, label: '10' },
-  { value: 25, label: '25' },
-  { value: 50, label: '50' },
-  { value: 100, label: '100' },
-];
-
 /** @param {{ open: boolean, onClose: () => void }} props */
 export function CreateRoomModal({ open, onClose }) {
   const navigate = useNavigate();
@@ -67,8 +38,6 @@ export function CreateRoomModal({ open, onClose }) {
   const [name, setName] = useState('');
   const [subject, setSubject] = useState('General');
   const [customSubject, setCustomSubject] = useState('');
-  const [duration, setDuration] = useState(50);
-  const [maxParticipants, setMaxParticipants] = useState(4);
   const [displayName, setDisplayName] = useState('');
   const [errors, setErrors] = useState({});
 
@@ -77,13 +46,6 @@ export function CreateRoomModal({ open, onClose }) {
 
   const handleRoomTypeChange = useCallback((newType) => {
     setRoomType(newType);
-    if (newType === 'CHAT') {
-      setDuration((prev) => (prev <= 120 ? 180 : prev));
-      setMaxParticipants((prev) => (prev <= 8 ? 25 : prev));
-    } else {
-      setDuration((prev) => (prev > 120 ? 50 : prev));
-      setMaxParticipants((prev) => (prev > 8 ? 4 : prev));
-    }
   }, []);
 
   const handleNameChange = useCallback((e) => {
@@ -144,8 +106,8 @@ export function CreateRoomModal({ open, onClose }) {
       name: name.trim(),
       subject: roomType === 'CHAT' ? 'General' : subject,
       customSubject: roomType === 'STUDY' && subject === 'Custom' ? customSubject.trim() : undefined,
-      durationMin: duration,
-      maxParticipants,
+      durationMin: 360,
+      maxParticipants: 50,
       displayName: finalDisplayName,
     };
 
@@ -163,6 +125,7 @@ export function CreateRoomModal({ open, onClose }) {
       setStep('success');
     });
   };
+
 
   const handleCopy = useCallback(() => {
     if (!createdRoom?.roomCode) return;
@@ -278,24 +241,6 @@ export function CreateRoomModal({ open, onClose }) {
                 tabIndex={roomType !== 'STUDY' ? -1 : undefined}
               />
             )}
-          </div>
-
-          <div key="field-duration">
-            <SegmentedControl
-              label="Session duration"
-              options={roomType === 'STUDY' ? STUDY_DURATION_OPTIONS : CHAT_DURATION_OPTIONS}
-              value={duration}
-              onChange={setDuration}
-            />
-          </div>
-
-          <div key="field-participants">
-            <SegmentedControl
-              label="Max participants"
-              options={roomType === 'STUDY' ? STUDY_PARTICIPANT_OPTIONS : CHAT_PARTICIPANT_OPTIONS}
-              value={maxParticipants}
-              onChange={setMaxParticipants}
-            />
           </div>
 
           <div key="field-display-name">
