@@ -72,21 +72,37 @@ export function CreateRoomModal({ open, onClose }) {
   const [displayName, setDisplayName] = useState('');
   const [errors, setErrors] = useState({});
 
-  const roomNameRef = useRef(null);
   // Stable placeholder so it doesn't regenerate on every re-render
   const guestPlaceholderRef = useRef(`Guest ${Math.floor(1000 + Math.random() * 9000)}`);
 
   const handleRoomTypeChange = useCallback((newType) => {
     setRoomType(newType);
     if (newType === 'CHAT') {
-      setDuration(180);
-      setMaxParticipants(25);
+      setDuration((prev) => (prev <= 120 ? 180 : prev));
+      setMaxParticipants((prev) => (prev <= 8 ? 25 : prev));
     } else {
-      setDuration(50);
-      setMaxParticipants(4);
+      setDuration((prev) => (prev > 120 ? 50 : prev));
+      setMaxParticipants((prev) => (prev > 8 ? 4 : prev));
     }
-    // Refocus room name after clicking a type card (which naturally steals focus)
-    requestAnimationFrame(() => roomNameRef.current?.focus());
+  }, []);
+
+  const handleNameChange = useCallback((e) => {
+    setName(e.target.value);
+    setErrors((prev) => (prev.name ? { ...prev, name: undefined } : prev));
+  }, []);
+
+  const handleSubjectChange = useCallback((e) => {
+    setSubject(e.target.value);
+    setErrors((prev) => (prev.customSubject ? { ...prev, customSubject: undefined } : prev));
+  }, []);
+
+  const handleCustomSubjectChange = useCallback((e) => {
+    setCustomSubject(e.target.value);
+    setErrors((prev) => (prev.customSubject ? { ...prev, customSubject: undefined } : prev));
+  }, []);
+
+  const handleDisplayNameChange = useCallback((e) => {
+    setDisplayName(e.target.value);
   }, []);
 
   const validate = () => {
@@ -120,7 +136,7 @@ export function CreateRoomModal({ open, onClose }) {
     setLoading(true);
     if (!socket.connected) socket.connect();
 
-    const finalDisplayName = displayName.trim() || `Guest ${Math.floor(1000 + Math.random() * 9000)}`;
+    const finalDisplayName = displayName.trim() || guestPlaceholderRef.current;
     sessionStorage.setItem('syntara:displayName', finalDisplayName);
 
     const payload = {
@@ -182,7 +198,7 @@ export function CreateRoomModal({ open, onClose }) {
       {step === 'form' ? (
         <form onSubmit={handleSubmit} className="create-room-form" noValidate>
           {/* Room Type Selector */}
-          <div className="create-room-type-group">
+          <div key="field-room-type" className="create-room-type-group">
             <label className="input-field__label">Room Mode</label>
             <div className="create-room-type-cards">
               <button
@@ -215,78 +231,81 @@ export function CreateRoomModal({ open, onClose }) {
             </div>
           </div>
 
-          <Input
-            id="room-name"
-            ref={roomNameRef}
-            label="Room name"
-            type="text"
-            placeholder={roomType === 'STUDY' ? "e.g. DSA Final Prep" : "e.g. Project Discussion & Files"}
-            value={name}
-            onChange={(e) => {
-              setName(e.target.value);
-              if (errors.name) setErrors((p) => ({ ...p, name: undefined }));
-            }}
-            error={errors.name}
-            maxLength={40}
-            required
-            autoComplete="off"
-          />
+          <div key="field-room-name">
+            <Input
+              id="room-name"
+              label="Room name"
+              type="text"
+              placeholder={roomType === 'STUDY' ? 'e.g. DSA Final Prep' : 'e.g. Project Discussion & Files'}
+              value={name}
+              onChange={handleNameChange}
+              error={errors.name}
+              maxLength={40}
+              required
+              autoComplete="off"
+            />
+          </div>
 
-          {roomType === 'STUDY' && (
-            <>
-              <Select
-                id="room-subject"
-                label="Subject"
-                options={SUBJECTS}
-                value={subject}
-                onChange={(e) => {
-                  setSubject(e.target.value);
-                  if (errors.customSubject) setErrors((p) => ({ ...p, customSubject: undefined }));
-                }}
+          {/* Stable Study-specific fields container to prevent subtree remounting */}
+          <div
+            key="field-study-options"
+            className={`create-room-study-fields ${roomType === 'STUDY' ? 'create-room-study-fields--open' : ''}`}
+            aria-hidden={roomType !== 'STUDY'}
+          >
+            <Select
+              id="room-subject"
+              label="Subject"
+              options={SUBJECTS}
+              value={subject}
+              onChange={handleSubjectChange}
+              disabled={roomType !== 'STUDY'}
+            />
+            {subject === 'Custom' && (
+              <Input
+                id="room-custom-subject"
+                label="Custom subject"
+                type="text"
+                placeholder="e.g. Organic Chemistry"
+                value={customSubject}
+                onChange={handleCustomSubjectChange}
+                error={errors.customSubject}
+                maxLength={30}
+                autoComplete="off"
+                disabled={roomType !== 'STUDY'}
               />
-              {subject === 'Custom' && (
-                <Input
-                  id="room-custom-subject"
-                  label="Custom subject"
-                  type="text"
-                  placeholder="e.g. Organic Chemistry"
-                  value={customSubject}
-                  onChange={(e) => {
-                    setCustomSubject(e.target.value);
-                    if (errors.customSubject) setErrors((p) => ({ ...p, customSubject: undefined }));
-                  }}
-                  error={errors.customSubject}
-                  maxLength={30}
-                  autoComplete="off"
-                />
-              )}
-            </>
-          )}
+            )}
+          </div>
 
-          <SegmentedControl
-            label="Session duration"
-            options={roomType === 'STUDY' ? STUDY_DURATION_OPTIONS : CHAT_DURATION_OPTIONS}
-            value={duration}
-            onChange={setDuration}
-          />
+          <div key="field-duration">
+            <SegmentedControl
+              label="Session duration"
+              options={roomType === 'STUDY' ? STUDY_DURATION_OPTIONS : CHAT_DURATION_OPTIONS}
+              value={duration}
+              onChange={setDuration}
+            />
+          </div>
 
-          <SegmentedControl
-            label="Max participants"
-            options={roomType === 'STUDY' ? STUDY_PARTICIPANT_OPTIONS : CHAT_PARTICIPANT_OPTIONS}
-            value={maxParticipants}
-            onChange={setMaxParticipants}
-          />
+          <div key="field-participants">
+            <SegmentedControl
+              label="Max participants"
+              options={roomType === 'STUDY' ? STUDY_PARTICIPANT_OPTIONS : CHAT_PARTICIPANT_OPTIONS}
+              value={maxParticipants}
+              onChange={setMaxParticipants}
+            />
+          </div>
 
-          <Input
-            id="room-display-name"
-            label="Your name (optional)"
-            type="text"
-            placeholder={guestPlaceholderRef.current}
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            maxLength={24}
-            autoComplete="off"
-          />
+          <div key="field-display-name">
+            <Input
+              id="room-display-name"
+              label="Your name (optional)"
+              type="text"
+              placeholder={guestPlaceholderRef.current}
+              value={displayName}
+              onChange={handleDisplayNameChange}
+              maxLength={24}
+              autoComplete="off"
+            />
+          </div>
 
           {errors.general && (
             <p className="create-room-form__error text-body-sm" role="alert">{errors.general}</p>
@@ -338,3 +357,4 @@ export function CreateRoomModal({ open, onClose }) {
     </Modal>
   );
 }
+

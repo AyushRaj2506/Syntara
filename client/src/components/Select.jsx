@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import './Select.css';
 
 /**
@@ -9,7 +10,7 @@ import './Select.css';
  *   [key: string]: any
  * }} props
  */
-export function Select({ label, error, options, className = '', id, ...rest }) {
+export const Select = memo(function Select({ label, error, options, className = '', id, ...rest }) {
   return (
     <div className={`select-field ${className}`}>
       {label && <label className="select-field__label" htmlFor={id}>{label}</label>}
@@ -30,4 +31,5 @@ export function Select({ label, error, options, className = '', id, ...rest }) {
       {error && <span className="select-field__error" role="alert">{error}</span>}
     </div>
   );
-}
+});
+

@@ -14,9 +14,13 @@ import {
   ExternalLink,
   Loader2,
   File,
+  RotateCw,
+  Check,
+  AlertCircle,
 } from 'lucide-react';
 import { SERVER_URL } from '../../../lib/socket';
 import { relativeTime } from '../../../lib/formatters';
+import { useWebRTCFileTransfer } from '../../../hooks/useWebRTCFileTransfer';
 import './Chat.css';
 
 const COMMON_EMOJI = ['😊', '😂', '👍', '❤️', '🔥', '💯', '🤔', '😮', '🎉', '👀', '✅', '❓', '😅', '🙏', '💪', '⭐'];
@@ -30,9 +34,9 @@ function formatBytes(bytes, decimals = 1) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
 
-function getFileIcon(type, name = '') {
-  if (type?.includes('pdf') || name.endsWith('.pdf')) return <FileText size={20} className="text-accent" />;
-  if (type?.includes('spreadsheet') || type?.includes('excel') || name.match(/\.(xlsx|xls|csv)$/i))
+function getFileIcon(type = '', name = '') {
+  if (type.includes('pdf') || name.endsWith('.pdf')) return <FileText size={20} className="text-accent" />;
+  if (type.includes('spreadsheet') || type.includes('excel') || name.match(/\.(xlsx|xls|csv)$/i))
     return <FileSpreadsheet size={20} className="text-success" />;
   if (name.match(/\.(zip|tar|gz|rar|7z)$/i)) return <FileArchive size={20} className="text-warning" />;
   if (name.match(/\.(js|jsx|ts|tsx|py|cpp|c|java|html|css|json)$/i))
@@ -55,13 +59,46 @@ export function Chat({ messages, meId, participants, actions, onFocus, roomId, i
   const [text, setText] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
+  const [unreadNewCount, setUnreadNewCount] = useState(0);
   const [selectedFile, setSelectedFile] = useState(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState('');
+  const [isSendingFile, setIsSendingFile] = useState(false);
+  const [transferError, setTransferError] = useState('');
 
   const listRef = useRef(null);
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
+  const prevMessagesCountRef = useRef(messages.length);
+
+  // WebRTC P2P DataChannel file transfer hook
+  const handleP2PFileReceived = useCallback((fileData) => {
+    // Dispatch received P2P file as a rich chat message
+    const msgId = fileData.transferId || crypto.randomUUID();
+    const chatMsg = {
+      id: msgId,
+      type: 'user',
+      participantId: fileData.senderParticipantId,
+      displayName: fileData.senderDisplayName,
+      text: fileData.caption || '',
+      file: {
+        fileId: msgId,
+        fileName: fileData.fileName,
+        fileSize: fileData.fileSize,
+        fileType: fileData.fileType,
+        url: fileData.url,
+        isBlob: true,
+      },
+      createdAt: Date.now(),
+    };
+    // Appended locally
+    actions.appendLocalMessage?.(chatMsg);
+  }, [actions]);
+
+  const { transfers, sendFile } = useWebRTCFileTransfer({
+    roomId,
+    myParticipantId: meId,
+    participants,
+    onFileReceived: handleP2PFileReceived,
+  });
 
   const virtualizer = useVirtualizer({
     count: messages.length,
@@ -70,80 +107,86 @@ export function Chat({ messages, meId, participants, actions, onFocus, roomId, i
     overscan: 10,
   });
 
-  // Auto-scroll to bottom when new messages arrive and user is at bottom
+  // Auto-scroll or unread counter
   useEffect(() => {
-    if (atBottom && listRef.current) {
-      listRef.current.scrollTop = listRef.current.scrollHeight;
+    const isNewMessage = messages.length > prevMessagesCountRef.current;
+    if (isNewMessage) {
+      if (atBottom && listRef.current) {
+        listRef.current.scrollTop = listRef.current.scrollHeight;
+      } else {
+        setUnreadNewCount((prev) => prev + (messages.length - prevMessagesCountRef.current));
+      }
     }
+    prevMessagesCountRef.current = messages.length;
   }, [messages.length, atBottom]);
 
   const handleScroll = () => {
     if (!listRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = listRef.current;
-    setAtBottom(scrollHeight - scrollTop - clientHeight < 60);
+    const isNearBottom = scrollHeight - scrollTop - clientHeight < 60;
+    setAtBottom(isNearBottom);
+    if (isNearBottom) {
+      setUnreadNewCount(0);
+    }
   };
 
   const scrollToBottom = () => {
     if (listRef.current) {
-      listRef.current.scrollTop = listRef.current.scrollHeight;
+      listRef.current.scrollTo({
+        top: listRef.current.scrollHeight,
+        behavior: 'smooth',
+      });
       setAtBottom(true);
+      setUnreadNewCount(0);
     }
   };
 
   const handleFileSelect = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setUploadError('');
+    setTransferError('');
     setSelectedFile(file);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const removeSelectedFile = () => {
     setSelectedFile(null);
-    setUploadError('');
+    setTransferError('');
   };
 
   const send = useCallback(async () => {
     const trimmed = text.trim();
     if (!trimmed && !selectedFile) return;
 
-    let uploadedFileData = undefined;
+    const messageId = crypto.randomUUID();
+    let filePayload = undefined;
 
     if (selectedFile) {
-      setUploading(true);
-      setUploadError('');
+      setIsSendingFile(true);
+      setTransferError('');
       try {
-        const formData = new FormData();
-        // IMPORTANT: roomId MUST be appended before file so multer's
-        // diskStorage destination callback can read req.body.roomId
-        if (roomId) formData.append('roomId', roomId);
-        formData.append('file', selectedFile);
-
-        const res = await fetch(`${SERVER_URL}/api/upload`, {
-          method: 'POST',
-          body: formData,
-        });
-
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || 'Upload failed');
-        }
-
-        const data = await res.json();
-        uploadedFileData = data.file;
+        const transferResult = await sendFile(selectedFile, trimmed);
+        filePayload = {
+          fileId: transferResult.transferId,
+          fileName: selectedFile.name,
+          fileSize: selectedFile.size,
+          fileType: selectedFile.type || 'application/octet-stream',
+          url: transferResult.url ? transferResult.url.replace(SERVER_URL, '') : undefined,
+          fullUrl: transferResult.url,
+        };
       } catch (err) {
-        setUploadError(err.message || 'Failed to upload file. Please try again.');
-        setUploading(false);
+        setTransferError('File transfer failed. Please retry.');
+        setIsSendingFile(false);
         return;
       }
-      setUploading(false);
+      setIsSendingFile(false);
       setSelectedFile(null);
     }
 
-    // Pass undefined for text when empty (Zod .optional() requires undefined, not '')
-    actions.sendChat(trimmed || undefined, uploadedFileData);
+    actions.sendChat(trimmed || undefined, filePayload, messageId);
     setText('');
-  }, [text, selectedFile, roomId, actions]);
+    scrollToBottom();
+  }, [text, selectedFile, actions, sendFile]);
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -174,8 +217,8 @@ export function Chat({ messages, meId, participants, actions, onFocus, roomId, i
           <div className="chat__empty">
             <p className="text-body-sm text-tertiary">
               {isChatRoom
-                ? 'Welcome to the chat room! Share messages, notes, and files here.'
-                : 'No messages yet.'}
+                ? 'Welcome to the chat room! Start the conversation or share files below.'
+                : 'Start the conversation.'}
             </p>
           </div>
         )}
@@ -202,17 +245,41 @@ export function Chat({ messages, meId, participants, actions, onFocus, roomId, i
         </div>
       </div>
 
+      {/* Active transfers progress panel */}
+      {Object.values(transfers).filter((t) => t.status === 'SENDING' || t.status === 'RECEIVING' || t.status === 'PROGRESS').length > 0 && (
+        <div className="chat__transfers-drawer">
+          {Object.values(transfers)
+            .filter((t) => t.status === 'SENDING' || t.status === 'RECEIVING' || t.status === 'PROGRESS')
+            .map((t) => (
+              <div key={t.id} className="chat__transfer-progress-card">
+                <div className="chat__transfer-info">
+                  {getFileIcon(t.fileType, t.fileName)}
+                  <div className="chat__transfer-details">
+                    <span className="chat__transfer-name text-body-sm font-medium">{t.fileName}</span>
+                    <span className="chat__transfer-meta text-caption text-tertiary">
+                      {t.isSender ? 'Sending to room…' : `Receiving from ${t.senderDisplayName}…`} {t.progress}%
+                    </span>
+                  </div>
+                </div>
+                <div className="chat__transfer-bar">
+                  <div className="chat__transfer-bar-fill" style={{ width: `${t.progress}%` }} />
+                </div>
+              </div>
+            ))}
+        </div>
+      )}
+
       {/* New messages pill */}
       {!atBottom && (
         <button type="button" className="chat__new-pill" onClick={scrollToBottom}>
           <ArrowDown size={14} aria-hidden="true" />
-          New messages
+          <span>{unreadNewCount > 0 ? `${unreadNewCount} new messages` : 'New messages'}</span>
         </button>
       )}
 
       {/* Input area */}
       <div className="chat__input-area">
-        {/* Selected file preview */}
+        {/* Attachment preview chip before sending */}
         {selectedFile && (
           <div className="chat__file-preview-chip">
             <div className="chat__file-preview-info">
@@ -220,7 +287,7 @@ export function Chat({ messages, meId, participants, actions, onFocus, roomId, i
               <div className="chat__file-preview-text">
                 <span className="chat__file-preview-name text-body-sm font-medium">{selectedFile.name}</span>
                 <span className="chat__file-preview-size text-caption text-tertiary">
-                  {formatBytes(selectedFile.size)}
+                  {formatBytes(selectedFile.size)} • Ready to send
                 </span>
               </div>
             </div>
@@ -228,7 +295,7 @@ export function Chat({ messages, meId, participants, actions, onFocus, roomId, i
               type="button"
               className="chat__file-preview-remove"
               onClick={removeSelectedFile}
-              disabled={uploading}
+              disabled={isSendingFile}
               aria-label="Remove attachment"
             >
               <X size={14} />
@@ -236,10 +303,14 @@ export function Chat({ messages, meId, participants, actions, onFocus, roomId, i
           </div>
         )}
 
-        {uploadError && (
-          <p className="chat__upload-error text-caption" role="alert">
-            {uploadError}
-          </p>
+        {transferError && (
+          <div className="chat__transfer-error text-caption" role="alert">
+            <AlertCircle size={14} />
+            <span>{transferError}</span>
+            <button type="button" className="chat__retry-btn" onClick={send}>
+              <RotateCw size={12} /> Retry
+            </button>
+          </div>
         )}
 
         {showEmoji && (
@@ -276,7 +347,7 @@ export function Chat({ messages, meId, participants, actions, onFocus, roomId, i
             type="button"
             className="chat__attach-trigger"
             onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
+            disabled={isSendingFile}
             title="Attach file (PDF, images, videos, docs)"
             aria-label="Attach file"
           >
@@ -296,7 +367,7 @@ export function Chat({ messages, meId, participants, actions, onFocus, roomId, i
           <textarea
             ref={inputRef}
             className="chat__textarea"
-            placeholder={selectedFile ? 'Add a caption…' : 'Message the room…'}
+            placeholder={selectedFile ? 'Add a message with your file…' : 'Message the room…'}
             value={text}
             maxLength={2000}
             rows={1}
@@ -314,10 +385,14 @@ export function Chat({ messages, meId, participants, actions, onFocus, roomId, i
             type="button"
             className="chat__send-btn"
             onClick={send}
-            disabled={(!text.trim() && !selectedFile) || uploading}
+            disabled={(!text.trim() && !selectedFile) || isSendingFile}
             aria-label="Send message"
           >
-            {uploading ? <Loader2 size={16} className="chat__spinner" /> : <Send size={16} aria-hidden="true" />}
+            {isSendingFile ? (
+              <Loader2 size={16} className="chat__spinner" />
+            ) : (
+              <Send size={16} aria-hidden="true" />
+            )}
           </button>
         </div>
 
@@ -350,7 +425,7 @@ function ChatMessage({ msg, meId, participants }) {
 
   const isMine = msg.participantId === meId;
   const file = msg.file;
-  const fileUrl = file?.url ? `${SERVER_URL}${file.url}` : '';
+  const fileUrl = file?.fullUrl || (file?.url ? (file.url.startsWith('http') || file.url.startsWith('blob:') ? file.url : `${SERVER_URL}${file.url}`) : '');
 
   const isImage = file?.fileType?.startsWith('image/');
   const isVideo = file?.fileType?.startsWith('video/');
@@ -376,16 +451,26 @@ function ChatMessage({ msg, meId, participants }) {
               <a href={fileUrl} target="_blank" rel="noopener noreferrer">
                 <img src={fileUrl} alt={file.fileName} className="chat-file-image" loading="lazy" />
               </a>
-              <span className="chat-file-image-caption text-caption">
-                {file.fileName} ({formatBytes(file.fileSize)})
-              </span>
+              <div className="chat-file-meta-row">
+                <span className="chat-file-image-caption text-caption">
+                  {file.fileName} ({formatBytes(file.fileSize)})
+                </span>
+                <a href={fileUrl} download={file.fileName} className="chat-file-download-link" title="Download image">
+                  <Download size={13} />
+                </a>
+              </div>
             </div>
           ) : isVideo ? (
             <div className="chat-file-video-wrap">
               <video src={fileUrl} controls preload="metadata" className="chat-file-video" />
-              <span className="chat-file-caption text-caption">
-                {file.fileName} ({formatBytes(file.fileSize)})
-              </span>
+              <div className="chat-file-meta-row">
+                <span className="chat-file-caption text-caption">
+                  {file.fileName} ({formatBytes(file.fileSize)})
+                </span>
+                <a href={fileUrl} download={file.fileName} className="chat-file-download-link" title="Download video">
+                  <Download size={13} />
+                </a>
+              </div>
             </div>
           ) : isAudio ? (
             <div className="chat-file-audio-wrap">
@@ -397,26 +482,33 @@ function ChatMessage({ msg, meId, participants }) {
               <div className="chat-file-card__icon">{getFileIcon(file.fileType, file.fileName)}</div>
               <div className="chat-file-card__details">
                 <span className="chat-file-card__name text-body-sm font-medium">{file.fileName}</span>
-                <span className="chat-file-card__size text-caption text-tertiary">{formatBytes(file.fileSize)}</span>
+                <div className="chat-file-card__sub">
+                  <span className="chat-file-card__size text-caption text-tertiary">{formatBytes(file.fileSize)}</span>
+                  <span className="chat-file-card__badge text-caption">
+                    <Check size={11} className="text-success" /> Received
+                  </span>
+                </div>
               </div>
               <div className="chat-file-card__actions">
-                <a
-                  href={fileUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="chat-file-action-btn"
-                  title="Open in new tab"
-                >
-                  <ExternalLink size={14} />
-                  <span>Open</span>
-                </a>
+                {fileUrl && (
+                  <a
+                    href={fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="chat-file-action-btn"
+                    title="Open file"
+                  >
+                    <ExternalLink size={13} />
+                    <span>Open</span>
+                  </a>
+                )}
                 <a
                   href={fileUrl}
                   download={file.fileName}
                   className="chat-file-action-btn chat-file-action-btn--primary"
                   title="Download file"
                 >
-                  <Download size={14} />
+                  <Download size={13} />
                   <span>Download</span>
                 </a>
               </div>
@@ -427,3 +519,4 @@ function ChatMessage({ msg, meId, participants }) {
     </div>
   );
 }
+

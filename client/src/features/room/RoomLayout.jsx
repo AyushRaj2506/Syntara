@@ -14,6 +14,8 @@ import { Quiz } from './quiz/Quiz';
 import { useToast } from '../../components/Toast';
 import './RoomLayout.css';
 
+import { useConnectionState } from '../../hooks/useConnectionState';
+
 /**
  * The full room workspace — adapts between Study Room and Chat Room modes.
  */
@@ -28,13 +30,14 @@ export function RoomLayout() {
   const {
     room,
     me,
-    connectionStatus,
     chatMessages,
     goals,
     focusSession,
     quizState,
     actions,
   } = useRoom(roomCode, displayName);
+
+  const connectionStatus = useConnectionState();
 
   // Center tab state for Study Rooms: 'notes' | 'whiteboard' | 'code'
   const [centerTab, setCenterTab] = useState('notes');
@@ -197,30 +200,45 @@ export function RoomLayout() {
             )}
 
             <div className="room-layout__workspace">
-              {effectiveCenterTab === 'notes' && (
+              <div
+                className={`room-workspace-pane ${effectiveCenterTab === 'notes' ? 'room-workspace-pane--active' : ''}`}
+                aria-hidden={effectiveCenterTab !== 'notes'}
+              >
                 <StudyNotes initialContent={room.sharedNotes} actions={actions} />
-              )}
-              {effectiveCenterTab === 'whiteboard' && (
+              </div>
+              <div
+                className={`room-workspace-pane ${effectiveCenterTab === 'whiteboard' ? 'room-workspace-pane--active' : ''}`}
+                aria-hidden={effectiveCenterTab !== 'whiteboard'}
+              >
                 <Whiteboard
                   initialStrokes={room.whiteboardState}
                   participantId={me?.participantId}
                   actions={actions}
                 />
-              )}
-              {effectiveCenterTab === 'code' && (
+              </div>
+              <div
+                className={`room-workspace-pane ${effectiveCenterTab === 'code' ? 'room-workspace-pane--active' : ''}`}
+                aria-hidden={effectiveCenterTab !== 'code'}
+              >
                 <CodeScratchpad initialCodeState={room.codeState} actions={actions} />
-              )}
-              {effectiveCenterTab === 'quiz' && (
-                <Quiz
-                  quizState={quizState}
-                  meId={me?.participantId}
-                  isHost={isHost}
-                  actions={actions}
-                  participants={participants}
-                />
+              </div>
+              {quizState && (
+                <div
+                  className={`room-workspace-pane ${effectiveCenterTab === 'quiz' ? 'room-workspace-pane--active' : ''}`}
+                  aria-hidden={effectiveCenterTab !== 'quiz'}
+                >
+                  <Quiz
+                    quizState={quizState}
+                    meId={me?.participantId}
+                    isHost={isHost}
+                    actions={actions}
+                    participants={participants}
+                  />
+                </div>
               )}
             </div>
           </main>
+
 
           {/* Right column — Chat */}
           <aside

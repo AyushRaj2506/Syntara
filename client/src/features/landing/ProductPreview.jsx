@@ -5,21 +5,25 @@ import { Avatar } from '../../components/Avatar';
 import { Badge } from '../../components/Badge';
 import './ProductPreview.css';
 
-const MOCK_MESSAGES = [
-  { id: '1', name: 'Alex', color: '#5B8FBF', text: 'Just updated the binary search tree traversal section in notes.', time: '2m ago' },
-  { id: '2', name: 'Priya', color: '#C0704A', text: 'Awesome, reviewing the deletion edge case now.', time: '1m ago' },
+const INITIAL_MESSAGES = [
+  { id: '1', name: 'Alex', color: '#5B8FBF', text: 'Updated the binary search tree traversal section in notes.', time: '2m ago' },
+  { id: '2', name: 'Priya', color: '#C0704A', text: 'Reviewing the deletion edge case now.', time: '1m ago' },
   { id: '3', name: 'Marcus', color: '#7B9E5A', text: 'Timer is set for 25m focus sprint. Let’s finish chapter 4.', time: 'Just now' },
 ];
 
-const EXTRA_MESSAGES = [
-  { id: '4', name: 'Priya', color: '#C0704A', text: 'Don’t forget the balance factor property for AVL trees!', time: 'Just now' },
+const STREAMING_MESSAGES = [
+  { id: '4', name: 'Priya', color: '#C0704A', text: 'Remember the balance factor property for AVL trees!', time: 'Just now' },
   { id: '5', name: 'Alex', color: '#5B8FBF', text: 'Added a quick diagram to the board.', time: 'Just now' },
+  { id: '6', name: 'Elena', color: '#A06BC0', text: 'Joined the room with the latest lecture slides.', time: 'Just now' },
 ];
 
 export function ProductPreview() {
-  const [messages, setMessages] = useState(MOCK_MESSAGES);
+  const [messages, setMessages] = useState(INITIAL_MESSAGES);
   const [isTyping, setIsTyping] = useState(false);
+  const [typingUser, setTypingUser] = useState('Priya');
   const [secondsLeft, setSecondsLeft] = useState(24 * 60 + 38);
+  const [participantCount, setParticipantCount] = useState(3);
+  const [hasNewParticipant, setHasNewParticipant] = useState(false);
 
   // Timer ticking down in real time
   useEffect(() => {
@@ -29,30 +33,40 @@ export function ProductPreview() {
     return () => clearInterval(timer);
   }, []);
 
-  // Ambient chat messages fading in and typing indicator
+  // Ambient organic activity cycle
   useEffect(() => {
-    let msgIdx = 0;
-    const msgInterval = setInterval(() => {
-      if (msgIdx < EXTRA_MESSAGES.length) {
-        const nextMsg = EXTRA_MESSAGES[msgIdx];
-        setMessages((prev) => [...prev, nextMsg]);
-        msgIdx++;
-      } else {
-        setMessages(MOCK_MESSAGES);
-        msgIdx = 0;
+    let step = 0;
+    const interval = setInterval(() => {
+      if (step === 0) {
+        setIsTyping(true);
+        setTypingUser('Priya');
+        setTimeout(() => {
+          setIsTyping(false);
+          setMessages((prev) => [...prev, STREAMING_MESSAGES[0]]);
+        }, 3500);
+      } else if (step === 1) {
+        setHasNewParticipant(true);
+        setParticipantCount(4);
+        setMessages((prev) => [...prev, STREAMING_MESSAGES[2]]);
+      } else if (step === 2) {
+        setIsTyping(true);
+        setTypingUser('Alex');
+        setTimeout(() => {
+          setIsTyping(false);
+          setMessages((prev) => [...prev, STREAMING_MESSAGES[1]]);
+        }, 3000);
+      } else if (step === 3) {
+        // Reset cycle smoothly
+        setMessages(INITIAL_MESSAGES);
+        setHasNewParticipant(false);
+        setParticipantCount(3);
       }
-    }, 7000);
+      step = (step + 1) % 4;
+    }, 9000);
 
-    const typingInterval = setInterval(() => {
-      setIsTyping(true);
-      setTimeout(() => setIsTyping(false), 4000);
-    }, 12000);
-
-    return () => {
-      clearInterval(msgInterval);
-      clearInterval(typingInterval);
-    };
+    return () => clearInterval(interval);
   }, []);
+
 
   const formatTimer = (totalSec) => {
     const m = Math.floor(totalSec / 60);
@@ -77,7 +91,7 @@ export function ProductPreview() {
             </div>
             <div className="product-preview__header-right">
               <span className="product-preview__status-pill text-caption">
-                <span className="status-dot status-dot--live" /> 3 online
+                <span className="status-dot status-dot--live" /> {participantCount} online
               </span>
               <span className="text-caption text-secondary">42m left</span>
             </div>
@@ -104,13 +118,19 @@ export function ProductPreview() {
                     <Avatar name="Marcus Chen" participantId="marcus-3" size="sm" />
                     <span className="text-body-sm preview-name">Marcus Chen</span>
                   </div>
+                  {hasNewParticipant && (
+                    <div className="preview-participant-row preview-participant-row--new">
+                      <Avatar name="Elena Rostova" participantId="elena-4" size="sm" />
+                      <span className="text-body-sm preview-name">Elena Rostova</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
               <div className="preview-section preview-timer-card">
                 <div className="preview-timer-header">
                   <span className="text-label text-accent">Focus Sprint</span>
-                  <span className="text-caption text-secondary">3 active</span>
+                  <span className="text-caption text-secondary">{participantCount} active</span>
                 </div>
                 <div className="preview-timer-digits text-display-md">
                   {formatTimer(secondsLeft)}
@@ -141,10 +161,11 @@ export function ProductPreview() {
                 <span className="text-label text-tertiary">Shared Notes</span>
                 {isTyping && (
                   <span className="preview-typing-indicator text-caption text-accent">
-                    Priya is typing…
+                    {typingUser} is editing…
                   </span>
                 )}
               </div>
+
               <div className="preview-notes-content">
                 <h3 className="text-heading-md preview-notes-h">Binary Search Trees & Rebalancing</h3>
                 <p className="text-body-md text-secondary">

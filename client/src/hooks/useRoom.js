@@ -11,7 +11,6 @@ import { socket } from '../lib/socket';
  * @returns {{
  *   room: object|null,
  *   me: object|null,
- *   connectionStatus: 'connected'|'reconnecting'|'disconnected',
  *   chatMessages: object[],
  *   goals: object[],
  *   focusSession: object|null,
@@ -22,7 +21,6 @@ import { socket } from '../lib/socket';
 export function useRoom(roomCode, displayName) {
   const [room, setRoom] = useState(null);
   const [me, setMe] = useState(null);
-  const [connectionStatus, setConnectionStatus] = useState('disconnected');
   const [chatMessages, setChatMessages] = useState([]);
   const [goals, setGoals] = useState([]);
   const [focusSession, setFocusSession] = useState(null);
@@ -71,10 +69,8 @@ export function useRoom(roomCode, displayName) {
       socket.once('connect', doJoin);
     }
 
-    // ---- Connection status ----
-    const onConnect = () => {
-      setConnectionStatus('connected');
-      // Re-join on reconnect to get state sync
+    // Handle mid-session reconnects to re-sync room state
+    const onReconnect = () => {
       const token = tokenKey ? sessionStorage.getItem(tokenKey) : null;
       socket.emit('room:join', {
         roomCode: roomCode.toUpperCase(),
@@ -90,14 +86,8 @@ export function useRoom(roomCode, displayName) {
         }
       });
     };
-    const onDisconnect = () => setConnectionStatus('disconnected');
-    const onReconnecting = () => setConnectionStatus('reconnecting');
-    const onReconnected = () => setConnectionStatus('connected');
 
-    socket.on('connect', onConnect);
-    socket.on('disconnect', onDisconnect);
-    socket.on('reconnecting', onReconnecting);
-    socket.on('reconnect', onReconnected);
+    socket.on('connect', onReconnect);
 
     // ---- Room events ----
     const onRoomClosed = ({ reason }) => {
@@ -142,9 +132,10 @@ export function useRoom(roomCode, displayName) {
     socket.on('participant:update', onParticipantUpdate);
     socket.on('host:transfer', onHostTransfer);
 
-    // ---- Chat ----
     const onChatMessage = ({ message }) => {
       setChatMessages((prev) => {
+        // Prevent duplicate append if we already optimistically added it
+        if (prev.some((m) => m.id === message.id)) return prev;
         const next = [...prev, message];
         return next.slice(-500);
       });
@@ -219,10 +210,7 @@ export function useRoom(roomCode, displayName) {
     socket.on('quiz:results', onQuizResults);
 
     return () => {
-      socket.off('connect', onConnect);
-      socket.off('disconnect', onDisconnect);
-      socket.off('reconnecting', onReconnecting);
-      socket.off('reconnect', onReconnected);
+      socket.off('connect', onReconnect);
       socket.off('room:closed', onRoomClosed);
       socket.off('participant:join', onParticipantJoin);
       socket.off('participant:leave', onParticipantLeave);
@@ -247,8 +235,35 @@ export function useRoom(roomCode, displayName) {
 
   // ---- Actions ----
   const actions = {
-    sendChat: useCallback((text, file) => socket.emit('chat:send', { text, file }), []),
+    sendChat: useCallback((text, file, id) => {
+      const messageId = id || crypto.randomUUID();
+      
+      // Optimistically append the message if text is provided
+      // (For file uploads, the server has to process it first, so we might skip optimistic for files, 
+      // but if we want we can do it. For now let's just do it for everything).
+      setChatMessages((prev) => {
+        const optimisticMsg = {
+          id: messageId,
+          type: 'user',
+          participantId: me?.participantId,
+          displayName: me?.displayName,
+          text: text || '',
+          file,
+          createdAt: Date.now(),
+        };
+        return [...prev, optimisticMsg].slice(-500);
+      });
+      
+      socket.emit('chat:send', { id: messageId, text, file });
+    }, [me]),
+    appendLocalMessage: useCallback((msg) => {
+      setChatMessages((prev) => {
+        if (prev.some((m) => m.id === msg.id)) return prev;
+        return [...prev, msg].slice(-500);
+      });
+    }, []),
     updateNotes: useCallback((content) => socket.emit('notes:update', { content }), []),
+
     clearNotes: useCallback(() => socket.emit('notes:clear'), []),
     pingEditing: useCallback(() => socket.emit('notes:editing'), []),
     drawStroke: useCallback((payload) => socket.emit('whiteboard:draw', payload), []),
@@ -273,5 +288,5 @@ export function useRoom(roomCode, displayName) {
     }, [tokenKey]),
   };
 
-  return { room, me, connectionStatus, chatMessages, goals, focusSession, quizState, actions };
+  return { room, me, chatMessages, goals, focusSession, quizState, actions };
 }
