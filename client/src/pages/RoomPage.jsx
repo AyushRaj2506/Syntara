@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { RoomLayout } from '../features/room/RoomLayout';
 import { Input } from '../components/Input';
 import { Button } from '../components/Button';
 import { isValidRoomCode } from '../lib/formatters';
 
 export function RoomPage() {
-  const { roomCode } = useParams();
+  const { roomCode: paramCode } = useParams();
+  const [searchParams] = useSearchParams();
+  const queryCode = searchParams.get('room');
   const navigate = useNavigate();
 
   const [displayName, setDisplayName] = useState(() => {
@@ -17,11 +19,12 @@ export function RoomPage() {
   });
   const [guestPlaceholder] = useState(() => `Guest ${Math.floor(1000 + Math.random() * 9000)}`);
 
-  const formattedCode = roomCode ? roomCode.toUpperCase() : '';
+  const activeCode = (paramCode || queryCode || '').trim();
+  const formattedCode = activeCode ? activeCode.toUpperCase() : '';
 
   useEffect(() => {
     if (!formattedCode || !isValidRoomCode(formattedCode)) {
-      navigate('/');
+      navigate('/', { replace: true });
     }
   }, [formattedCode, navigate]);
 

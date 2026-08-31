@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { X, FileText, Palette, Code2, MessageSquare, Flame, CheckSquare, Users, Clock } from 'lucide-react';
 import { useRoom } from '../../hooks/useRoom';
 import { RoomTopBar } from './RoomTopBar';
@@ -21,7 +21,10 @@ import './RoomLayout.css';
  * The full room workspace — adapts cleanly between Study Room and Chat Room modes.
  */
 export function RoomLayout() {
-  const { roomCode } = useParams();
+  const { roomCode: paramCode } = useParams();
+  const [searchParams] = useSearchParams();
+  const queryCode = searchParams.get('room');
+  const roomCode = (paramCode || queryCode || '').trim().toUpperCase();
   const navigate = useNavigate();
   const { addToast } = useToast();
 

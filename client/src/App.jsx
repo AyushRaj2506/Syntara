@@ -11,6 +11,7 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<LandingPage />} />
+          <Route path="/room" element={<RoomPage />} />
           <Route path="/room/:roomCode" element={<RoomPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
