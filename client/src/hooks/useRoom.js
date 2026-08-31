@@ -21,6 +21,7 @@ import { socket } from '../lib/socket';
 export function useRoom(roomCode, displayName) {
   const [room, setRoom] = useState(null);
   const [me, setMe] = useState(null);
+  const [joinError, setJoinError] = useState(null);
   const [chatMessages, setChatMessages] = useState([]);
   const [goals, setGoals] = useState([]);
   const [focusSession, setFocusSession] = useState(null);
@@ -55,8 +56,11 @@ export function useRoom(roomCode, displayName) {
 
         if (response?.error) {
           console.error('[room] Join error:', response.error);
+          setJoinError(response.error);
           return;
         }
+        // Clear any previous join error on successful join
+        setJoinError(null);
         const { room: roomData, participantToken } = response;
         if (participantToken && tokenKey) {
           sessionStorage.setItem(tokenKey, participantToken);
@@ -340,5 +344,5 @@ export function useRoom(roomCode, displayName) {
     }, [tokenKey]),
   };
 
-  return { room, me, chatMessages, goals, focusSession, quizState, actions };
+  return { room, me, joinError, chatMessages, goals, focusSession, quizState, actions };
 }
