@@ -12,8 +12,6 @@ services:
         sync: false
       - key: ROOM_CLEANUP_INTERVAL_MS
         value: 60000
-      - key: ROOM_EMPTY_GRACE_MS
-        value: 120000
       - key: MAX_ROOMS_PER_IP_PER_HOUR
         value: 10
 

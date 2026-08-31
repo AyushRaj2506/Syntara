@@ -31,6 +31,7 @@ export function RoomLayout() {
   const {
     room,
     me,
+    joinError,
     chatMessages,
     goals,
     focusSession,
@@ -95,6 +96,31 @@ export function RoomLayout() {
     setLastReadCount(chatMessages.length);
     setUnreadCount(0);
   };
+
+  // Join error state (ROOM_NOT_FOUND, ROOM_EXPIRED, ROOM_FULL, etc.)
+  // This replaces the infinite loading spinner that was the previous behavior.
+  if (joinError) {
+    const errorTitle =
+      joinError.code === 'ROOM_NOT_FOUND' ? 'Room not found' :
+      joinError.code === 'ROOM_EXPIRED'   ? 'Room has ended' :
+      joinError.code === 'ROOM_FULL'      ? 'Room is full' :
+      'Could not join room';
+    const errorMsg =
+      joinError.code === 'ROOM_NOT_FOUND'
+        ? 'This room no longer exists. It may have ended after all participants left, or the link may be incorrect.'
+        : joinError.message || 'An error occurred joining the room.';
+    return (
+      <div className="room-ended">
+        <h2 className="text-heading-lg font-bold">{errorTitle}</h2>
+        <p className="text-body-md" style={{ color: 'var(--color-text-secondary)', maxWidth: '380px', textAlign: 'center' }}>
+          {errorMsg}
+        </p>
+        <button type="button" className="room-ended__btn font-semibold" onClick={() => navigate('/')}>
+          Return Home
+        </button>
+      </div>
+    );
+  }
 
   // Room ended state
   if (room?._closed) {

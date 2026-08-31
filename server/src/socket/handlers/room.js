@@ -3,6 +3,7 @@ const { roomStore } = require('../../rooms/RoomStore');
 const { generateRoomCode } = require('../../rooms/roomCode');
 const { selectNextHost } = require('../../services/hostTransfer');
 const { createRoomSchema, joinRoomSchema } = require('../../services/validation');
+const { deleteRoomUploads } = require('../../rooms/roomUtils');
 
 /** @param {import('socket.io').Server} io @param {import('socket.io').Socket} socket */
 function registerRoomHandlers(io, socket) {
@@ -73,9 +74,6 @@ function registerRoomHandlers(io, socket) {
     const publicRoom = roomStore.toPublicRoom(room);
     ack?.({ room: publicRoom, participantToken: token });
 
-    // Notify existing participants (just the host here, but emit pattern consistent)
-    socket.to(roomId).emit('participant:join', { participant: { ...participant, token: undefined } });
-
     console.log(`[room] Created ${roomCode} (${roomId}) by ${displayName}`);
   });
 
@@ -90,7 +88,7 @@ function registerRoomHandlers(io, socket) {
     const room = roomStore.getByCode(roomCode);
 
     if (!room) {
-      return ack?.({ error: { code: 'ROOM_NOT_FOUND', message: 'We couldn\'t find that room.' } });
+      return ack?.({ error: { code: 'ROOM_NOT_FOUND', message: 'Room not found. It may have ended or never existed.' } });
     }
     if (Date.now() >= room.expiresAt) {
       return ack?.({ error: { code: 'ROOM_EXPIRED', message: 'This room has ended.' } });
@@ -231,7 +229,7 @@ function registerRoomHandlers(io, socket) {
 
     const targetSocketId = targetParticipant.socketId;
 
-    // Remove from store first
+    // Remove from store
     roomStore.removeParticipant(roomId, targetParticipantId);
 
     // Add system message
@@ -244,7 +242,7 @@ function registerRoomHandlers(io, socket) {
     room.messages.push(sysMsg);
     if (room.messages.length > 500) room.messages.shift();
 
-    // Notify remaining participants (treat as a leave for their UI)
+    // Notify remaining participants
     io.to(roomId).emit('participant:leave', { participantId: targetParticipantId });
     io.to(roomId).emit('chat:message', { message: sysMsg });
 
@@ -264,6 +262,9 @@ function registerRoomHandlers(io, socket) {
 
     ack?.({ success: true });
     console.log(`[room] Host ${requesterId} removed ${targetParticipant.displayName} from ${room.roomCode}`);
+
+    // After host kick: if room is now empty, close it immediately
+    closeIfEmpty(io, room);
   });
 
   // ---- disconnect ----
@@ -317,7 +318,7 @@ function handleLeave(io, socket) {
   io.to(roomId).emit('participant:leave', { participantId });
   io.to(roomId).emit('chat:message', { message: sysMsg });
 
-  // Host transfer if needed
+  // Host transfer if needed (only matters if room is still alive with other participants)
   if (room.hostId === participantId) {
     const next = selectNextHost(roomId, participantId);
     if (next) {
@@ -336,6 +337,34 @@ function handleLeave(io, socket) {
   }
 
   console.log(`[room] ${leavingParticipant.displayName} left ${room.roomCode}`);
+
+  // Immediately close the room if it's now empty — no grace period.
+  closeIfEmpty(io, room);
+}
+
+/**
+ * If the room has zero participants remaining, immediately invalidate and delete it.
+ * This is called after every participant removal (leave or kick).
+ * No grace period — once empty, the room is gone and the code is no longer joinable.
+ *
+ * @param {import('socket.io').Server} io
+ * @param {import('../../types/index.js').Room} room - the room object (may already be mutated)
+ */
+function closeIfEmpty(io, room) {
+  const remaining = roomStore.participantCount(room.roomId);
+  if (remaining > 0) return; // still has participants, nothing to do
+
+  // Emit room:closed to any lingering sockets (defensive — normally none remain)
+  io.to(room.roomId).emit('room:closed', { reason: 'empty' });
+  io.in(room.roomId).socketsLeave(room.roomId);
+
+  // Delete room from active store — code is immediately non-joinable after this line
+  roomStore.delete(room.roomId);
+
+  // Clean up any server-side uploads for this room
+  deleteRoomUploads(room.roomId);
+
+  console.log(`[room] ${room.roomCode} closed — all participants left.`);
 }
 
 module.exports = { registerRoomHandlers };
