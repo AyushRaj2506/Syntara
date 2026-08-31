@@ -9,6 +9,8 @@ import {
   Check,
   Copy,
   X,
+  MoreVertical,
+  UserMinus,
 } from 'lucide-react';
 import './ParticipantList.css';
 
@@ -16,23 +18,33 @@ import './ParticipantList.css';
  * @param {{
  *   participants: object[],
  *   hostId: string,
+ *   meId?: string,
  *   isChatRoom?: boolean,
  *   roomCode?: string,
  *   expiresAt?: number,
+ *   onRemove?: (participantId: string) => void,
  * }} props
  */
 export function ParticipantList({
   participants,
   hostId,
+  meId,
   isChatRoom = false,
   roomCode = '',
   expiresAt: _expiresAt,
   messageCount = 0,
   fileCount = 0,
+  onRemove,
 }) {
   const [copiedLink, setCopiedLink] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const inviteRef = useRef(null);
+
+  // Which participant's action menu is currently open (by participantId)
+  const [openMenuId, setOpenMenuId] = useState(null);
+  // Which participant is pending confirmation for removal
+  const [confirmRemoveId, setConfirmRemoveId] = useState(null);
+  const menuRef = useRef(null);
 
   const sorted = [...participants].sort((a, b) => {
     if (a.participantId === hostId) return -1;
@@ -50,7 +62,7 @@ export function ParticipantList({
     });
   };
 
-  // Close popover on outside click
+  // Close invite popover on outside click
   useEffect(() => {
     if (!inviteOpen) return;
     const handler = (e) => {
@@ -61,6 +73,31 @@ export function ParticipantList({
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [inviteOpen]);
+
+  // Close participant action menu on outside click
+  useEffect(() => {
+    if (!openMenuId && !confirmRemoveId) return;
+    const handler = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setOpenMenuId(null);
+        setConfirmRemoveId(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [openMenuId, confirmRemoveId]);
+
+  const handleRemoveConfirmed = (participantId) => {
+    onRemove?.(participantId);
+    setConfirmRemoveId(null);
+    setOpenMenuId(null);
+  };
+
+  // Host can remove: must have onRemove, must not be self, must not be the host
+  const canRemove = (p) =>
+    typeof onRemove === 'function' &&
+    p.participantId !== meId &&
+    p.participantId !== hostId;
 
   return (
     <div className={`participant-list ${isChatRoom ? 'participant-list--chat-mode' : ''}`}>
@@ -76,6 +113,9 @@ export function ParticipantList({
           {sorted.map((p) => {
             const isHost = p.participantId === hostId;
             const isConnected = p.status === 'connected';
+            const showActions = canRemove(p);
+            const isMenuOpen = openMenuId === p.participantId;
+            const isConfirming = confirmRemoveId === p.participantId;
 
             return (
               <li key={p.participantId} className="participant-row" role="listitem">
@@ -113,6 +153,61 @@ export function ParticipantList({
                     </div>
                   )}
                 </div>
+
+                {/* Host kick action — only shown to the host, for non-host non-self participants */}
+                {showActions && (
+                  <div className="participant-row__actions" ref={isMenuOpen || isConfirming ? menuRef : null}>
+                    {isConfirming ? (
+                      <div className="participant-kick-confirm">
+                        <span className="participant-kick-confirm__label">Remove?</span>
+                        <button
+                          type="button"
+                          className="participant-kick-confirm__yes"
+                          onClick={() => handleRemoveConfirmed(p.participantId)}
+                          aria-label={`Confirm remove ${p.displayName}`}
+                        >
+                          <Check size={11} />
+                        </button>
+                        <button
+                          type="button"
+                          className="participant-kick-confirm__no"
+                          onClick={() => setConfirmRemoveId(null)}
+                          aria-label="Cancel"
+                        >
+                          <X size={11} />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          className="participant-row__menu-btn"
+                          onClick={() => setOpenMenuId(isMenuOpen ? null : p.participantId)}
+                          aria-label={`Actions for ${p.displayName}`}
+                          aria-expanded={isMenuOpen}
+                        >
+                          <MoreVertical size={13} />
+                        </button>
+                        {isMenuOpen && (
+                          <div className="participant-action-menu" role="menu">
+                            <button
+                              type="button"
+                              className="participant-action-menu__item participant-action-menu__item--danger"
+                              role="menuitem"
+                              onClick={() => {
+                                setOpenMenuId(null);
+                                setConfirmRemoveId(p.participantId);
+                              }}
+                            >
+                              <UserMinus size={12} />
+                              <span>Remove participant</span>
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
               </li>
             );
           })}

@@ -895,8 +895,7 @@
 /* ── Composer / Input Area ── */
 .chat__input-area {
   padding: var(--space-3) var(--space-4);
-  background-color: var(--color-surface-1);
-  border-top: 1px solid var(--color-border-subtle);
+  /* No background or border-top here — the composer-row below IS the visible box */
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -904,11 +903,9 @@
   z-index: 1;
 }
 
-/* Chat room: elevated floating composer */
+/* Chat room: slightly more vertical padding */
 .chat__input-area--chat-room {
   padding: var(--space-3) var(--space-4) var(--space-4);
-  background-color: var(--color-surface-1);
-  border-top: 1px solid var(--color-border-subtle);
 }
 
 .chat__composer-row {

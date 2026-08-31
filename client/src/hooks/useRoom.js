@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { socket } from '../lib/socket';
 
 /**
@@ -8,7 +8,7 @@ import { socket } from '../lib/socket';
  *
  * @param {string|null} roomCode - null when not in a room
  * @param {string|null} displayName
- * @returns {{
+ * @returns {{\
  *   room: object|null,
  *   me: object|null,
  *   chatMessages: object[],
@@ -28,6 +28,11 @@ export function useRoom(roomCode, displayName) {
 
   const tokenKey = roomCode ? `syntara:session:${roomCode}` : null;
 
+  // Track whether a join is already in-flight to prevent double-join race
+  const joiningRef = useRef(false);
+  // Track the participantId we're currently joined as (survives re-renders)
+  const myParticipantIdRef = useRef(null);
+
   // ---- Connect and join ----
   useEffect(() => {
     if (!roomCode) return;
@@ -37,11 +42,17 @@ export function useRoom(roomCode, displayName) {
     if (!socket.connected) socket.connect();
 
     const doJoin = () => {
+      // Guard: don't double-emit if we're already mid-join for this room
+      if (joiningRef.current) return;
+      joiningRef.current = true;
+
       socket.emit('room:join', {
         roomCode: roomCode.toUpperCase(),
         displayName: displayName ?? undefined,
         participantToken: savedToken ?? undefined,
       }, (response) => {
+        joiningRef.current = false;
+
         if (response?.error) {
           console.error('[room] Join error:', response.error);
           return;
@@ -55,11 +66,15 @@ export function useRoom(roomCode, displayName) {
         setGoals(roomData.goals ?? []);
         setFocusSession(roomData.focusSession ?? null);
         setQuizState(roomData.quizState ?? null);
-        // Identify self
-        const myId = Object.values(roomData.participants).find(
-          p => p.socketId === socket.id
-        )?.participantId;
-        if (myId) setMe(roomData.participants[myId]);
+
+        // Identify self by matching socketId (server just gave us current state)
+        const myParticipant = Object.values(roomData.participants).find(
+          (p) => p.socketId === socket.id
+        );
+        if (myParticipant) {
+          setMe(myParticipant);
+          myParticipantIdRef.current = myParticipant.participantId;
+        }
       });
     };
 
@@ -69,8 +84,11 @@ export function useRoom(roomCode, displayName) {
       socket.once('connect', doJoin);
     }
 
-    // Handle mid-session reconnects to re-sync room state
+    // Handle mid-session reconnects (transport-level reconnect, not initial connect)
+    // socket.io.on('reconnect') fires ONLY on re-connections, not on initial connect,
+    // which prevents the double-join race.
     const onReconnect = () => {
+      joiningRef.current = false; // Reset flag in case it was stuck from a dropped request
       const token = tokenKey ? sessionStorage.getItem(tokenKey) : null;
       socket.emit('room:join', {
         roomCode: roomCode.toUpperCase(),
@@ -83,11 +101,21 @@ export function useRoom(roomCode, displayName) {
           setGoals(response.room.goals ?? []);
           setFocusSession(response.room.focusSession ?? null);
           setQuizState(response.room.quizState ?? null);
+          // Re-identify self after reconnect
+          const myParticipant = Object.values(response.room.participants).find(
+            (p) => p.socketId === socket.id
+          );
+          if (myParticipant) {
+            setMe(myParticipant);
+            myParticipantIdRef.current = myParticipant.participantId;
+          }
         }
       });
     };
 
-    socket.on('connect', onReconnect);
+    // Use the socket manager's reconnect event (fires AFTER transport reconnects,
+    // NOT on the initial connection — preventing the double-join bug).
+    socket.io.on('reconnect', onReconnect);
 
     // ---- Room events ----
     const onRoomClosed = ({ reason }) => {
@@ -99,6 +127,7 @@ export function useRoom(roomCode, displayName) {
     const onParticipantJoin = ({ participant }) => {
       setRoom((prev) => {
         if (!prev) return prev;
+        // Idempotent: if participantId already exists, upsert (don't create duplicate)
         return { ...prev, participants: { ...prev.participants, [participant.participantId]: participant } };
       });
     };
@@ -127,10 +156,21 @@ export function useRoom(roomCode, displayName) {
       });
       setMe((prev) => prev ? { ...prev, isHost: prev.participantId === newHostId } : prev);
     };
+
+    // participant:removed fires when the local user was kicked by the host.
+    // The server has already cleaned up; the client just needs to surface the message
+    // and navigate home. The navigation is triggered in RoomLayout via the room._removed flag.
+    const onParticipantRemoved = ({ message }) => {
+      setRoom((prev) => prev ? { ...prev, _closed: 'removed', _removedMessage: message } : prev);
+      // Remove the session token so they can't silently rejoin
+      if (tokenKey) sessionStorage.removeItem(tokenKey);
+    };
+
     socket.on('participant:join', onParticipantJoin);
     socket.on('participant:leave', onParticipantLeave);
     socket.on('participant:update', onParticipantUpdate);
     socket.on('host:transfer', onHostTransfer);
+    socket.on('participant:removed', onParticipantRemoved);
 
     const onChatMessage = ({ message }) => {
       setChatMessages((prev) => {
@@ -210,12 +250,16 @@ export function useRoom(roomCode, displayName) {
     socket.on('quiz:results', onQuizResults);
 
     return () => {
-      socket.off('connect', onReconnect);
+      // Cancel in-flight join if the component unmounts mid-request
+      joiningRef.current = false;
+      socket.off('connect', doJoin);
+      socket.io.off('reconnect', onReconnect);
       socket.off('room:closed', onRoomClosed);
       socket.off('participant:join', onParticipantJoin);
       socket.off('participant:leave', onParticipantLeave);
       socket.off('participant:update', onParticipantUpdate);
       socket.off('host:transfer', onHostTransfer);
+      socket.off('participant:removed', onParticipantRemoved);
       socket.off('chat:message', onChatMessage);
       socket.off('goal:create', onGoalCreate);
       socket.off('goal:update', onGoalUpdate);
@@ -281,9 +325,17 @@ export function useRoom(roomCode, displayName) {
     startQuiz: useCallback((questions) => socket.emit('quiz:start', { questions }), []),
     submitQuizAnswer: useCallback((questionIndex, optionIndex) =>
       socket.emit('quiz:submit', { questionIndex, optionIndex }), []),
+    removeParticipant: useCallback((targetParticipantId) => {
+      socket.emit('room:remove-participant', { targetParticipantId }, (response) => {
+        if (response?.error) {
+          console.error('[room] Remove participant error:', response.error);
+        }
+      });
+    }, []),
     leaveRoom: useCallback(() => {
       socket.emit('room:leave');
       socket.disconnect();
+      myParticipantIdRef.current = null;
       if (tokenKey) sessionStorage.removeItem(tokenKey);
     }, [tokenKey]),
   };

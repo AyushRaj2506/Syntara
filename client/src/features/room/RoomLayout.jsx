@@ -98,11 +98,19 @@ export function RoomLayout() {
 
   // Room ended state
   if (room?._closed) {
+    const endedMsg =
+      room._closed === 'expired'
+        ? 'The session time ran out.'
+        : room._closed === 'removed'
+        ? room._removedMessage || 'You were removed from this room by the host.'
+        : 'All participants left the room.';
     return (
       <div className="room-ended">
-        <h2 className="text-heading-lg font-bold">This room has ended.</h2>
+        <h2 className="text-heading-lg font-bold">
+          {room._closed === 'removed' ? 'Removed from room' : 'This room has ended.'}
+        </h2>
         <p className="text-body-md" style={{ color: 'var(--color-text-secondary)' }}>
-          {room._closed === 'expired' ? 'The session time ran out.' : 'All participants left the room.'}
+          {endedMsg}
         </p>
         <button type="button" className="room-ended__btn font-semibold" onClick={() => navigate('/')}>
           Return Home
@@ -154,11 +162,13 @@ export function RoomLayout() {
             <ParticipantList
               participants={participants}
               hostId={room.hostId}
+              meId={me?.participantId}
               isChatRoom={true}
               roomCode={room.roomCode}
               expiresAt={room.expiresAt}
               messageCount={chatMessages.filter(m => m.type === 'user').length}
               fileCount={chatMessages.filter(m => m.type === 'user' && m.file).length}
+              onRemove={isHost ? actions.removeParticipant : undefined}
             />
             <LiveActivity isChatRoom={true} />
           </aside>
@@ -184,7 +194,14 @@ export function RoomLayout() {
         <div className="room-layout__body">
           {/* Left column: People, Focus, Goals, Activity */}
           <aside className="room-layout__left">
-            <ParticipantList participants={participants} hostId={room.hostId} isChatRoom={false} roomCode={room.roomCode} />
+            <ParticipantList
+              participants={participants}
+              hostId={room.hostId}
+              meId={me?.participantId}
+              isChatRoom={false}
+              roomCode={room.roomCode}
+              onRemove={isHost ? actions.removeParticipant : undefined}
+            />
             <FocusTimer focusSession={focusSession} isHost={isHost} actions={actions} />
             <GoalList goals={goals} meId={me?.participantId} hostId={room.hostId} actions={actions} />
             <LiveActivity isChatRoom={false} />
@@ -291,8 +308,10 @@ export function RoomLayout() {
             <ParticipantList
               participants={participants}
               hostId={room.hostId}
+              meId={me?.participantId}
               isChatRoom={isChatMode}
               roomCode={room.roomCode}
+              onRemove={isHost ? actions.removeParticipant : undefined}
             />
             {isChatMode ? (
               <>
@@ -402,8 +421,10 @@ export function RoomLayout() {
               <ParticipantList
                 participants={participants}
                 hostId={room.hostId}
+                meId={me?.participantId}
                 isChatRoom={true}
                 roomCode={room.roomCode}
+                onRemove={isHost ? actions.removeParticipant : undefined}
               />
               <div className="chat-room-info-card mt-3">
                 <div className="chat-room-info-card__header">
