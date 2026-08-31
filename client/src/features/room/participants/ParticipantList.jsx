@@ -54,8 +54,20 @@ export function ParticipantList({
 
   const onlineCount = participants.filter((p) => p.status === 'connected').length;
 
+  const getInviteUrl = () => {
+    try {
+      const url = new URL(window.location.origin);
+      if (roomCode) {
+        url.searchParams.set('room', roomCode);
+      }
+      return url.toString();
+    } catch {
+      return `${window.location.origin}/?room=${encodeURIComponent(roomCode || '')}`;
+    }
+  };
+
   const handleCopyLink = () => {
-    const link = `${window.location.origin}/room/${roomCode || ''}`;
+    const link = getInviteUrl();
     navigator.clipboard.writeText(link).then(() => {
       setCopiedLink(true);
       setTimeout(() => setCopiedLink(false), 2000);
@@ -256,7 +268,7 @@ export function ParticipantList({
                   </div>
                   <div className="invite-popover__link-row">
                     <code className="invite-popover__link-text">
-                      {window.location.origin}/room/{roomCode}
+                      {getInviteUrl()}
                     </code>
                   </div>
                   <button
