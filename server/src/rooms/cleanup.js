@@ -38,9 +38,9 @@ function startCleanupSweep(io) {
         continue;
       }
 
-      // Empty check
-      const connected = roomStore.connectedCount(room.roomId);
-      if (connected === 0) {
+      // Empty check: participants are fully removed on leave, so use participantCount
+      const remaining = roomStore.participantCount(room.roomId);
+      if (remaining === 0) {
         if (!emptyRoomTimestamps.has(room.roomId)) {
           emptyRoomTimestamps.set(room.roomId, now);
         } else if (now - emptyRoomTimestamps.get(room.roomId) >= EMPTY_GRACE_MS) {

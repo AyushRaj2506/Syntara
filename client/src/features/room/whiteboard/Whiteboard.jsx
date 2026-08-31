@@ -39,7 +39,7 @@ export function Whiteboard({ initialStrokes = [], participantId, actions }) {
   const lastPointRef = useRef(null);
   const lastEmitTimeRef = useRef(0);
 
-  // Map of currently in-progress remote strokes
+  // Map of currently in-progress remote strokes (live preview from remote users)
   const remoteInFlightRef = useRef({});
 
   const isLight = theme === 'light';
@@ -76,6 +76,7 @@ export function Whiteboard({ initialStrokes = [], participantId, actions }) {
 
       if (stroke.points.length === 1) {
         const pt = stroke.points[0];
+        // Coordinates are normalized [0,1]; multiply by canvas dimensions
         ctx.arc(pt.x * width, pt.y * height, ctx.lineWidth / 2, 0, Math.PI * 2);
         ctx.fillStyle = ctx.strokeStyle;
         ctx.fill();
@@ -94,7 +95,7 @@ export function Whiteboard({ initialStrokes = [], participantId, actions }) {
     [bgColor, getLineWidth]
   );
 
-  // Full re-render from stroke history
+  // Full re-render from stroke history — always reads current canvas dimensions
   const redrawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -121,13 +122,13 @@ export function Whiteboard({ initialStrokes = [], participantId, actions }) {
       drawStrokeToContext(ctx, stroke, width, height);
     });
 
-    // Render active remote strokes
+    // Render active remote in-flight strokes (live preview)
     Object.values(remoteInFlightRef.current).forEach((stroke) => {
       drawStrokeToContext(ctx, stroke, width, height);
     });
   }, [bgColor, gridDotColor, drawStrokeToContext]);
 
-  // Immediate local segment drawing (0ms latency)
+  // Immediate local segment drawing (0ms latency for self)
   const drawSegment = (p1, p2, strokeColor, strokeSize) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -153,78 +154,119 @@ export function Whiteboard({ initialStrokes = [], participantId, actions }) {
     ctx.restore();
   };
 
-  // Resize canvas according to container
-  useEffect(() => {
-    const handleResize = () => {
-      if (!canvasRef.current || !containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      if (rect.width > 0 && rect.height > 0) {
-        canvasRef.current.width = rect.width;
-        canvasRef.current.height = rect.height;
-        redrawCanvas();
-      }
-    };
+  /**
+   * Resize the canvas to fit its container and redraw all strokes.
+   * Safe to call multiple times (idempotent for same dimensions).
+   */
+  const handleResize = useCallback(() => {
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
+    if (!canvas || !container) return;
 
-    handleResize();
-    const ro = new ResizeObserver(handleResize);
+    const rect = container.getBoundingClientRect();
+    // Only resize if container has actual dimensions (not hidden/collapsed)
+    if (rect.width > 0 && rect.height > 0) {
+      canvas.width = Math.floor(rect.width);
+      canvas.height = Math.floor(rect.height);
+      redrawCanvas();
+    }
+  }, [redrawCanvas]);
+
+  // Resize canvas when container dimensions change
+  useEffect(() => {
+    // Initial size — use rAF to ensure layout is committed before measuring
+    requestAnimationFrame(() => {
+      handleResize();
+    });
+
+    const ro = new ResizeObserver(() => {
+      // rAF guards against measuring in the middle of a layout pass
+      requestAnimationFrame(() => {
+        handleResize();
+      });
+    });
+
     if (containerRef.current) ro.observe(containerRef.current);
 
     return () => ro.disconnect();
-  }, [redrawCanvas]);
+  }, [handleResize]);
 
+  // When the whiteboard tab becomes visible again (after being hidden by tab switching),
+  // the canvas may have 0×0 dimensions because the browser doesn't lay out hidden elements.
+  // Force a resize+redraw when the container becomes visible.
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        requestAnimationFrame(() => {
+          handleResize();
+        });
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [handleResize]);
+
+  /**
+   * Sync strokes from initialStrokes (passed from useRoom's room.whiteboardState).
+   *
+   * Architecture note: useRoom.js is the single source of truth for committed strokes.
+   * It maintains room.whiteboardState via whiteboard:draw (done=true), whiteboard:clear,
+   * and whiteboard:undo events. The Whiteboard component receives this as initialStrokes.
+   *
+   * The Whiteboard only handles:
+   * - Local drawing (immediate, 0-latency)
+   * - Remote in-flight strokes (live preview from whiteboard:draw done=false events)
+   *
+   * Committed strokes (done=true) flow: server → useRoom → initialStrokes → strokesRef
+   */
   const prevStrokesLengthRef = useRef(-1);
   useEffect(() => {
     if (!initialStrokes) return;
     const prev = prevStrokesLengthRef.current;
     const next = initialStrokes.length;
-    if (prev === -1 || next < prev) {
+
+    // Sync strokesRef on: first mount, undo/clear (length decreases), or new commits
+    if (prev === -1 || next !== prev) {
       strokesRef.current = [...initialStrokes];
       setHasStrokes(initialStrokes.length > 0);
-      redrawCanvas();
+      // Use rAF to avoid drawing to a 0x0 canvas when the pane is first revealed
+      requestAnimationFrame(() => {
+        handleResize(); // Ensures canvas has correct dimensions before redrawing
+      });
     }
     prevStrokesLengthRef.current = next;
-  }, [initialStrokes, redrawCanvas]);
+  }, [initialStrokes, handleResize]);
 
-  // Socket event listeners
+  // Remote in-flight strokes (live preview while a remote user is still drawing)
+  // NOTE: committed strokes (done=true) are handled entirely by useRoom.js → initialStrokes.
+  // We only subscribe here for the in-flight preview (done=false).
   useEffect(() => {
-    const handleRemoteDraw = (strokeData) => {
-      const { strokeId, points, color: strokeColor, size: strokeSize, done } = strokeData;
-
+    const handleRemoteDraw = ({ strokeId, points, color: strokeColor, size: strokeSize, done }) => {
       if (!done) {
+        // Update or create the in-flight preview stroke
         remoteInFlightRef.current[strokeId] = {
           strokeId,
           color: strokeColor,
           size: strokeSize,
           points,
         };
+        redrawCanvas();
       } else {
+        // Stroke is committed — remove from in-flight (useRoom → initialStrokes will add it to strokesRef)
         delete remoteInFlightRef.current[strokeId];
-        strokesRef.current.push({
-          strokeId,
-          color: strokeColor,
-          size: strokeSize,
-          points,
-        });
-        setHasStrokes(true);
+        redrawCanvas();
       }
-      redrawCanvas();
     };
 
     const handleRemoteClear = () => {
-      strokesRef.current = [];
+      // useRoom already clears whiteboardState; we just clear in-flight
       remoteInFlightRef.current = {};
-      undoStackRef.current = [];
-      setHasStrokes(false);
       redrawCanvas();
     };
 
-    const handleRemoteUndo = ({ strokeId }) => {
-      if (strokeId) {
-        strokesRef.current = strokesRef.current.filter((s) => s.strokeId !== strokeId);
-      } else {
-        strokesRef.current.pop();
-      }
-      setHasStrokes(strokesRef.current.length > 0);
+    const handleRemoteUndo = () => {
+      // useRoom already updates whiteboardState; we just redraw
+      remoteInFlightRef.current = {};
       redrawCanvas();
     };
 
@@ -240,6 +282,8 @@ export function Whiteboard({ initialStrokes = [], participantId, actions }) {
   }, [redrawCanvas]);
 
   // Pointer Event Handlers
+  // All coordinates are normalized to [0,1] relative to canvas dimensions
+  // so they render correctly on canvases of any size.
   const getNormalizedPoint = (e) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
@@ -314,6 +358,7 @@ export function Whiteboard({ initialStrokes = [], participantId, actions }) {
       activeStrokeRef.current.points.push(pt);
     }
 
+    // Push to local strokesRef immediately for correct local undo
     strokesRef.current.push(activeStrokeRef.current);
     undoStackRef.current.push(activeStrokeRef.current.strokeId);
     if (undoStackRef.current.length > 30) undoStackRef.current.shift();

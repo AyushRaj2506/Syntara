@@ -105,7 +105,12 @@ function registerRoomHandlers(io, socket) {
         // Disconnect old socket if different
         if (existing.socketId && existing.socketId !== socket.id) {
           const oldSocket = io.sockets.sockets.get(existing.socketId);
-          if (oldSocket) oldSocket.disconnect(true);
+          if (oldSocket) {
+            // Clear data first so handleLeave does not run for old socket
+            oldSocket.data.roomId = undefined;
+            oldSocket.data.participantId = undefined;
+            oldSocket.disconnect(true);
+          }
         }
         roomStore.updateParticipant(roomId, existing.participantId, {
           socketId: socket.id,
@@ -131,6 +136,15 @@ function registerRoomHandlers(io, socket) {
     const count = roomStore.participantCount(roomId);
     if (count >= room.maxParticipants) {
       return ack?.({ error: { code: 'ROOM_FULL', message: 'This room is full.' } });
+    }
+
+    // Guard against the same socket joining twice (e.g. double emit during reconnect race)
+    if (socket.data.roomId === roomId && socket.data.participantId) {
+      const existingP = room.participants[socket.data.participantId];
+      if (existingP) {
+        const publicRoom = roomStore.toPublicRoom(roomStore.getById(roomId));
+        return ack?.({ room: publicRoom, participantToken: existingP.token });
+      }
     }
 
     const participantId = uuidv4();
@@ -182,6 +196,76 @@ function registerRoomHandlers(io, socket) {
     handleLeave(io, socket);
   });
 
+  // ---- room:remove-participant (host only) ----
+  socket.on('room:remove-participant', (payload, ack) => {
+    const { roomId, participantId: requesterId } = socket.data ?? {};
+    if (!roomId || !requesterId) {
+      return ack?.({ error: { code: 'NOT_IN_ROOM', message: 'You are not in a room.' } });
+    }
+
+    const room = roomStore.getById(roomId);
+    if (!room) {
+      return ack?.({ error: { code: 'ROOM_NOT_FOUND', message: 'Room not found.' } });
+    }
+
+    // Server-side host validation — never trust the client's isHost flag
+    if (room.hostId !== requesterId) {
+      console.warn(`[room] Non-host ${requesterId} attempted to remove participant in ${room.roomCode}`);
+      return ack?.({ error: { code: 'FORBIDDEN', message: 'Only the host can remove participants.' } });
+    }
+
+    const targetParticipantId = payload?.targetParticipantId;
+    if (!targetParticipantId) {
+      return ack?.({ error: { code: 'INVALID_PAYLOAD', message: 'targetParticipantId is required.' } });
+    }
+
+    // Cannot remove yourself
+    if (targetParticipantId === requesterId) {
+      return ack?.({ error: { code: 'INVALID_PAYLOAD', message: 'You cannot remove yourself.' } });
+    }
+
+    const targetParticipant = room.participants[targetParticipantId];
+    if (!targetParticipant) {
+      return ack?.({ error: { code: 'PARTICIPANT_NOT_FOUND', message: 'Participant not found or already left.' } });
+    }
+
+    const targetSocketId = targetParticipant.socketId;
+
+    // Remove from store first
+    roomStore.removeParticipant(roomId, targetParticipantId);
+
+    // Add system message
+    const sysMsg = {
+      id: uuidv4(),
+      type: 'system',
+      text: `${targetParticipant.displayName} was removed from the room`,
+      createdAt: Date.now(),
+    };
+    room.messages.push(sysMsg);
+    if (room.messages.length > 500) room.messages.shift();
+
+    // Notify remaining participants (treat as a leave for their UI)
+    io.to(roomId).emit('participant:leave', { participantId: targetParticipantId });
+    io.to(roomId).emit('chat:message', { message: sysMsg });
+
+    // Notify the removed participant directly
+    if (targetSocketId) {
+      const targetSocket = io.sockets.sockets.get(targetSocketId);
+      if (targetSocket) {
+        // Clear their room data before emitting so their disconnect handler is a no-op
+        targetSocket.data.roomId = undefined;
+        targetSocket.data.participantId = undefined;
+        targetSocket.emit('participant:removed', {
+          message: 'You were removed from this room by the host.',
+        });
+        targetSocket.leave(roomId);
+      }
+    }
+
+    ack?.({ success: true });
+    console.log(`[room] Host ${requesterId} removed ${targetParticipant.displayName} from ${room.roomCode}`);
+  });
+
   // ---- disconnect ----
   socket.on('disconnect', () => {
     handleLeave(io, socket);
@@ -190,6 +274,7 @@ function registerRoomHandlers(io, socket) {
 
 /**
  * Shared leave logic for both explicit room:leave and socket disconnect.
+ * Idempotent: if socket.data has already been cleared, this is a no-op.
  * @param {import('socket.io').Server} io
  * @param {import('socket.io').Socket} socket
  */
@@ -198,15 +283,27 @@ function handleLeave(io, socket) {
   if (!roomId || !participantId) return;
 
   const room = roomStore.getById(roomId);
-  if (!room) return;
+  if (!room) {
+    // Room already cleaned up; just clear socket data
+    socket.data.roomId = undefined;
+    socket.data.participantId = undefined;
+    return;
+  }
 
   const leavingParticipant = room.participants[participantId];
-  if (!leavingParticipant) return;
+  if (!leavingParticipant) {
+    // Participant already removed (e.g. by host kick); clear socket data and bail
+    socket.data.roomId = undefined;
+    socket.data.participantId = undefined;
+    return;
+  }
+
+  // Clear socket data BEFORE emitting so any re-entrant disconnect is a no-op
+  socket.data.roomId = undefined;
+  socket.data.participantId = undefined;
 
   roomStore.removeParticipant(roomId, participantId);
   socket.leave(roomId);
-  socket.data.roomId = undefined;
-  socket.data.participantId = undefined;
 
   const sysMsg = {
     id: uuidv4(),
