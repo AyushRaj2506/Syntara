@@ -1,7 +1,7 @@
 import { useCollaborativeDocument } from '../../../hooks/useCollaborativeDocument';
 import * as Y from 'yjs';
 import { SyncStatus } from '../../../components/SyncStatus';
-import { useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { Copy, Check, Trash2, Code2, Play, Loader2, ChevronDown, ChevronUp, Terminal } from 'lucide-react';
 import { memberHeaders, SERVER_URL } from '../../../lib/socket';
 import './CodeScratchpad.css';
@@ -138,17 +138,22 @@ function CodeEditor({ actions, doc }) {
         selection.current = [Y.createRelativePositionFromTypeIndex(text, input.selectionStart), Y.createRelativePositionFromTypeIndex(text, input.selectionEnd)];
       }
     };
-    const update = () => setValue({ code: text.toString(), language: doc.getMap('settings').get('language') || 'python' });
+    const update = () => {
+      const nextCode = text.toString();
+      const input = textareaRef.current;
+      // Apply each remote transaction immediately, before the next transaction
+      // captures cursor anchors. React may batch several state updates together.
+      if (input && input.value !== nextCode) input.value = nextCode;
+      if (input && selection.current) {
+        const [start, end] = selection.current.map(position => Y.createAbsolutePositionFromRelativePosition(position, doc)?.index);
+        if (start !== undefined && end !== undefined) input.setSelectionRange(start, end);
+        selection.current = null;
+      }
+      setValue({ code: nextCode, language: doc.getMap('settings').get('language') || 'python' });
+    };
     doc.on('beforeTransaction', before); doc.on('update', update);
     return () => { doc.off('beforeTransaction', before); doc.off('update', update); };
   }, [doc]);
-  useLayoutEffect(() => {
-    if (selection.current && textareaRef.current) {
-      const [start, end] = selection.current.map(position => Y.createAbsolutePositionFromRelativePosition(position, doc)?.index);
-      if (start !== undefined && end !== undefined) textareaRef.current.setSelectionRange(start, end);
-      selection.current = null;
-    }
-  }, [value, doc]);
   const change = ({ code: next, language: nextLanguage }) => {
     const text = doc.getText('code');
     const previous = text.toString();
@@ -337,7 +342,7 @@ function CodeEditor({ actions, doc }) {
         <textarea
           ref={textareaRef}
           className="code-scratchpad__textarea"
-          value={code}
+          defaultValue={code}
           onChange={handleCodeChange}
           onKeyDown={handleKeyDown}
           placeholder="// Type or paste your code here…"

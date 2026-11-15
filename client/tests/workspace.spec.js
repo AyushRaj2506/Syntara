@@ -67,13 +67,19 @@ test('notes and code merge simultaneous and offline edits from three users', asy
   await Promise.all(users.map(user => user.context().setOffline(false)));
   for (const user of users) for (let index = 0; index < 3; index++) await expect(user.getByRole('textbox', { name: 'Code editor' })).toHaveValue(new RegExp(`code-user-${index}`), { timeout: 20000 });
   await expect.poll(async () => new Set(await Promise.all(users.map(user => user.getByRole('textbox', { name: 'Code editor' }).inputValue()))).size).toBe(1);
-  // Online typing continues in different lines without blocking either editor.
-  await Promise.all(users.map((user, index) => user.getByRole('textbox', { name: 'Code editor' }).press('Control+End').then(() => user.keyboard.insertText(`\nmore-${index}`))));
-  for (const user of users) for (let index = 0; index < 3; index++) await expect(user.getByRole('textbox', { name: 'Code editor' })).toHaveValue(new RegExp(`more-${index}`));
+  await page.getByRole('textbox', { name: 'Code editor' }).fill('# first\n# second\n# third');
+  for (const user of users) await expect(user.getByRole('textbox', { name: 'Code editor' })).toHaveValue('# first\n# second\n# third');
+  await Promise.all(users.map(async (user, index) => {
+    const input = user.getByRole('textbox', { name: 'Code editor' });
+    await input.focus(); await input.press('Control+Home');
+    for (let row = 0; row < index; row++) await input.press('ArrowDown');
+    await input.press('End'); await input.pressSequentially(` writer${index}-finished`, { delay: 30 });
+  }));
+  for (const user of users) for (let index = 0; index < 3; index++) await expect(user.getByRole('textbox', { name: 'Code editor' })).toHaveValue(new RegExp(`writer${index}-finished`));
   await page.reload();
   await expect(page.locator('.notes-editor-content')).toContainText('notes-user-0');
   await page.getByRole('tab', { name: 'Code', exact: true }).click();
-  await expect(page.getByRole('textbox', { name: 'Code editor' })).toHaveValue(/more-2/);
+  await expect(page.getByRole('textbox', { name: 'Code editor' })).toHaveValue(/writer2-finished/);
   await expect(page.locator('.sync-status details')).toHaveCount(0);
   await Promise.all(contexts.map(context => context.close()));
 });
