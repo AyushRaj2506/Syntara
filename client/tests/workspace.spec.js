@@ -83,6 +83,8 @@ test('P2P files arrive once, including empty files; solo uploads use server fall
     await page.locator('input[type=file]').setInputFiles({ name, mimeType: 'text/plain', buffer });
     await page.getByRole('button', { name: 'Send File', exact: true }).click();
   };
+  await page.reload();
+  await expect(page.locator('.notes-editor-content')).toBeVisible();
   await sendFile('direct-test.txt', Buffer.from('peer content'));
   await expect(peer.getByRole('link', { name: 'Download direct-test.txt' })).toHaveCount(1, { timeout: 25000 });
   await expect(peer.getByRole('link', { name: 'Download direct-test.txt' })).toHaveAttribute('href', /^blob:/);

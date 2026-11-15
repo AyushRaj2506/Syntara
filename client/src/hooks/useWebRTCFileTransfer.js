@@ -20,6 +20,7 @@ export function useWebRTCFileTransfer({ roomId, myParticipantId, participants = 
     if (peers.current.has(id)) return peers.current.get(id);
     const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
     pc.pendingIce = [];
+    pc.remoteSocketId = latest.current.participants[id]?.socketId;
     peers.current.set(id, pc);
     pc.onicecandidate = e => { if (e.candidate) socket.emit('webrtc:signal', { targetParticipantId: id, signal: { type: 'ice', candidate: e.candidate } }); };
     const setup = dc => {
@@ -92,6 +93,11 @@ export function useWebRTCFileTransfer({ roomId, myParticipantId, participants = 
         }
       } catch { /* sendFile will use authenticated fallback when negotiation fails. */ }
     };
+    const resetPeers = () => {
+      for (const pc of peerMap.values()) pc.close();
+      peerMap.clear(); channelMap.clear();
+    };
+    socket.on('disconnect', resetPeers);
     socket.on('webrtc:signal', signal);
     const sweep = setInterval(() => {
       for (const [key, transfer] of incoming.current) if (Date.now() - transfer.updated > 60000) {
@@ -101,6 +107,7 @@ export function useWebRTCFileTransfer({ roomId, myParticipantId, participants = 
     }, 10000);
     return () => {
       socket.off('webrtc:signal', signal);
+      socket.off('disconnect', resetPeers);
       clearInterval(sweep);
       for (const pc of peerMap.values()) pc.close();
       peerMap.clear(); channelMap.clear(); incomingMap.clear();
@@ -110,11 +117,12 @@ export function useWebRTCFileTransfer({ roomId, myParticipantId, participants = 
   }, [createPeer, myParticipantId, update]);
   useEffect(() => {
     if (!myParticipantId) return;
+    // Refresh replaces socket IDs while participant IDs remain stable.
+    for (const [id, pc] of peers.current) if (!participants[id] || participants[id].status !== 'connected' || pc.remoteSocketId !== participants[id].socketId) {
+      pc.close(); peers.current.delete(id); channels.current.delete(id);
+    }
     for (const [id, participant] of Object.entries(participants)) {
       if (id !== myParticipantId && participant.status === 'connected' && myParticipantId < id) createPeer(id, true);
-    }
-    for (const [id, pc] of peers.current) if (!participants[id] || participants[id].status !== 'connected') {
-      pc.close(); peers.current.delete(id); channels.current.delete(id);
     }
   }, [participants, myParticipantId, createPeer]);
 

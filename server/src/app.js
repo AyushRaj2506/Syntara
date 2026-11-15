@@ -123,7 +123,7 @@ app.post('/api/run', requireMember, async (req, res) => {
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15_000);
+  const timeout = setTimeout(() => controller.abort(), 30_000);
 
   try {
     let compiler = 'gcc-13.2.0';
@@ -173,7 +173,7 @@ app.post('/api/run', requireMember, async (req, res) => {
   } catch (err) {
     clearTimeout(timeout);
     if (err.name === 'AbortError') {
-      return res.status(504).json({ error: 'Code execution timed out (15s limit).' });
+      return res.status(504).json({ error: 'Code execution timed out (30s limit).' });
     }
     console.error('[run] Execution error:', err.message);
     return res.status(502).json({ error: `Code execution service error: ${err.message}` });
