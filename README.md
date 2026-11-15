@@ -13,8 +13,8 @@
 - **Direct P2P File Sharing**: WebRTC DataChannel file transfer with delivery receipts and authenticated temporary server fallback, complete with drag & drop, file type detection, and inline image/document previews.
 - **Synchronized Study Tools**:
   - **Collaborative Whiteboard**: Real-time canvas with smooth pen, eraser, color palette, stroke sizing, and global clear/undo sync.
-  - **Live Study Notes**: Synchronized rich-text editor with headings, lists, code blocks, editing presence, and revision conflict protection. Unsaved drafts stay in browser session storage until saved or discarded.
-  - **Multi-Language Code Scratchpad**: Shared Python and C++ editor with revision conflict protection. Python runs in a browser worker after downloading Pyodide; C++ uses the server-side Compiler Explorer proxy with Wandbox fallback.
+  - **Live Study Notes**: Synchronized rich-text editor with headings, lists, code blocks, editing presence, and simultaneous collaborative editing. Collaborative document snapshots stay in browser session storage for reconnect recovery.
+  - **Multi-Language Code Scratchpad**: Shared Python and C++ editor with simultaneous collaborative editing. Python runs in a browser worker after downloading Pyodide; C++ uses the server-side Compiler Explorer proxy with Wandbox fallback.
   - **Focus Sprint Timer**: Synchronized focus timer with configurable sprints, pause/resume, and explicit reset.
   - **Interactive Group Quizzes**: Create multiple-choice quizzes with live timers, synchronized question progression, and instant leaderboards.
 - **Syntara Design System**: Custom theme engine supporting dark and warm light modes with high-contrast UI, custom typography, and responsive zoom scaling (67%–125%).
@@ -195,7 +195,7 @@ npm run dev
 3. **P2P File Transfer (WebRTC)**:
    - When a peer shares a file, the server coordinates WebRTC signaling (SDP offer/answer and ICE candidate exchange).
    - Once a secure `RTCDataChannel` is established, the file is sliced into binary chunks and sent directly peer-to-peer.
-   - Direct transfers remain peer-to-peer. When a peer connection fails or no peers are available, files are uploaded to temporary server storage. Download links expire with the room; cleanup removes its upload directory. Unsaved notes/code drafts can remain in the current browser session until saved or discarded.
+   - Direct transfers remain peer-to-peer. When a peer connection fails or no peers are available, files are uploaded to temporary server storage. Download links expire with the room; cleanup removes its upload directory. Collaborative notes/code snapshots remain in the current browser session for reconnect recovery.
 
 ---
 

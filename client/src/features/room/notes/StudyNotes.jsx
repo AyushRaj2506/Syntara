@@ -1,6 +1,7 @@
-import { useSharedDocument } from '../../../hooks/useSharedDocument';
+import { useCollaborativeDocument } from '../../../hooks/useCollaborativeDocument';
+import Collaboration from '@tiptap/extension-collaboration';
 import { SyncStatus } from '../../../components/SyncStatus';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -30,15 +31,22 @@ import './StudyNotes.css';
  *   actions: object,
  * }} props
  */
-export function StudyNotes({ initialContent, initialRevision, actions }) {
-  const initial = useMemo(() => ({ content: initialContent || '', revision: initialRevision }), [initialContent, initialRevision]);
-  const document = useSharedDocument('notes', initial, actions.roomCode);
+export function StudyNotes({ actions }) {
+  const collaboration = useCollaborativeDocument('notes', actions.roomCode);
+  return <div className="study-notes">
+    <SyncStatus document={collaboration} />
+    {collaboration.ready ? <NotesEditor actions={actions} doc={collaboration.doc} /> : <p role="status">Joining shared notes…</p>}
+  </div>;
+}
+function NotesEditor({ actions, doc }) {
   const [editingUsers, setEditingUsers] = useState({});
   const [confirmingClear, setConfirmingClear] = useState(false);
 
   const editor = useEditor({
     extensions: [
+      Collaboration.configure({ document: doc }),
       StarterKit.configure({
+        undoRedo: false,
         heading: { levels: [1, 2, 3] },
       }),
       Placeholder.configure({
@@ -48,23 +56,16 @@ export function StudyNotes({ initialContent, initialRevision, actions }) {
         limit: 50000,
       }),
     ],
-    content: document.value.content || '',
     editorProps: {
       attributes: {
         class: 'notes-editor-content',
       },
     },
-    onUpdate: ({ editor }) => {
-      document.change({ content: editor.getHTML() });
+    onUpdate: () => {
       actions.pingEditing?.();
     },
   });
 
-  useEffect(() => {
-    if (editor && document.value.content !== editor.getHTML()) {
-      editor.commands.setContent(document.value.content || '', { emitUpdate: false });
-    }
-  }, [editor, document.value]);
   useEffect(() => {
     const presence = ({ participantId }) => setEditingUsers(prev => ({ ...prev, [participantId]: Date.now() }));
     socket.on('notes:editing', presence);
@@ -91,7 +92,7 @@ export function StudyNotes({ initialContent, initialRevision, actions }) {
     return () => clearInterval(interval);
   }, []);
 
-  const handleClearNotes = () => document.change({ content: '' });
+  const handleClearNotes = () => editor?.commands.clearContent();
 
   const hasEditors = Object.keys(editingUsers).length > 0;
   const isEditorEmpty = editor ? editor.isEmpty : true;
@@ -99,8 +100,7 @@ export function StudyNotes({ initialContent, initialRevision, actions }) {
   if (!editor) return null;
 
   return (
-    <div className="study-notes">
-      <SyncStatus document={document} />
+    <div className="study-notes" style={{ minHeight: 0, flex: 1 }}>
       {/* Toolbar */}
       <div className="study-notes__toolbar" role="toolbar" aria-label="Notes formatting toolbar">
         <div className="study-notes__tool-group">

@@ -52,6 +52,7 @@ function initSocketServer(io) {
       // State sync is handled inside room handler after successful join
     });
 
+    require('./handlers/collaboration').registerCollaboration(io, socket);
     registerRoomHandlers(io, socket);
     registerChatHandlers(io, socket);
     registerNotesHandlers(io, socket);

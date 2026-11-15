@@ -1,6 +1,6 @@
 # Reliability and security changes
 
-The repair adds authenticated temporary uploads, canonical storage paths and quotas; room reconnection grace; acknowledged chat delivery and retry; revision-checked notes and code; committed whiteboard echoes; focus pause/resume/reset; safe quiz projections and completion; one responsive workspace; and verified peer file delivery with server fallback.
+The repair adds authenticated temporary uploads, canonical storage paths and quotas; room reconnection grace; acknowledged chat delivery and retry; CRDT collaborative notes and code; committed whiteboard echoes; focus pause/resume/reset; safe quiz projections and completion; one responsive workspace; and verified peer file delivery with server fallback.
 
 ## Run the checks
 
@@ -14,8 +14,8 @@ Install packages in both `client` and `server` using `npm ci`. Use Node 22.12 or
 ## Collaboration behavior
 
 - Unexpected disconnects preserve the participant identity for `ROOM_EMPTY_GRACE_MS` (default two minutes). Explicit Leave removes the participant immediately.
-- Notes/code use optimistic revision checks. They do not automatically merge character-level concurrent edits. Conflicts preserve the local draft and show the latest server version for comparison. Users can discard their draft or explicitly save it over the latest version.
-- Unsaved drafts remain in browser session storage until saved or discarded. This is disclosed in the documentation and sync status.
+- Notes and code use Yjs CRDT updates to merge simultaneous edits from multiple people, including edits made offline. Notes use TipTap collaboration; code retains relative cursor positions as remote text arrives. Undo in notes and code affects the local user's edits.
+- Collaborative documents are cached in browser session storage for reconnect recovery. They remain ephemeral on the server and end with the room. Updates exchange state vectors so synchronized content is not resent on each keystroke.
 - Direct files go to the connected recipients present at send time. They are not restored by a browser refresh. Receipt failures or missing channels use temporary server storage for the room.
 - Temporary uploads require `X-Room-Code` and an Authorization bearer participant token. Random file links are private download capabilities valid only while the room is active.
 - Uploads are limited to 250 MB per file, 500 MB per room, and 1 GB total. An in-flight upload reserves 250 MB until completion or abort. Goals are capped at 100 and whiteboard histories at 2000 strokes.

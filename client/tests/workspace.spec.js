@@ -45,21 +45,37 @@ test('desktop editors, refresh recovery, focus controls, and mobile state preser
   await page.screenshot({ path: 'test-results/workspace-mobile.png', fullPage: true });
   expect(errors).toEqual([]);
 });
-test('notes propagate between peers; concurrent edits preserve a conflict draft', async ({ page, browser }) => {
+test('notes and code merge simultaneous and offline edits from three users', async ({ page, browser }) => {
   const room = await seed(page);
-  const peerContext = await browser.newContext(); const peer = await peerContext.newPage();
-  await peer.addInitScript(() => sessionStorage.setItem('syntara:displayName', 'Peer'));
-  await peer.goto(`http://127.0.0.1:5175/room/${room.roomCode}`);
-  await expect(peer.locator('.notes-editor-content')).toBeVisible();
-  await page.locator('.notes-editor-content').fill('Shared first edit');
-  await expect(peer.locator('.notes-editor-content')).toContainText('Shared first edit');
-  await Promise.all([page.locator('.notes-editor-content').fill('Host concurrent draft'), peer.locator('.notes-editor-content').fill('Peer concurrent draft')]);
-  await expect.poll(async () => (await page.locator('.sync-status details').count()) + (await peer.locator('.sync-status details').count())).toBeGreaterThan(0);
-  const conflicted = await page.locator('.sync-status details').count() ? page : peer;
-  await conflicted.locator('.sync-status summary').click();
-  await conflicted.getByRole('button', { name: 'Use latest (discard my draft)' }).click();
-  await expect(page.locator('.notes-editor-content')).toHaveText(await peer.locator('.notes-editor-content').innerText());
-  await peerContext.close();
+  const contexts = await Promise.all([browser.newContext(), browser.newContext()]);
+  const peers = await Promise.all(contexts.map(context => context.newPage()));
+  for (const [index, peer] of peers.entries()) {
+    await peer.addInitScript(name => sessionStorage.setItem('syntara:displayName', name), `Peer ${index}`);
+    await peer.goto(`http://127.0.0.1:5175/?room=${room.roomCode}`);
+    await expect(peer.locator('.notes-editor-content')).toBeVisible();
+  }
+  const users = [page, ...peers];
+  // Disconnect everyone after initial sync so each edit is guaranteed concurrent.
+  await Promise.all(users.map(user => user.context().setOffline(true)));
+  await Promise.all(users.map((user, index) => user.locator('.notes-editor-content').fill(`notes-user-${index} `)));
+  await Promise.all(users.map(user => user.context().setOffline(false)));
+  for (const user of users) for (let index = 0; index < 3; index++) await expect(user.locator('.notes-editor-content')).toContainText(`notes-user-${index}`, { timeout: 20000 });
+  await expect.poll(async () => new Set(await Promise.all(users.map(user => user.locator('.notes-editor-content').innerText()))).size).toBe(1);
+  await Promise.all(users.map(user => user.getByRole('tab', { name: 'Code', exact: true }).click()));
+  await Promise.all(users.map(user => user.context().setOffline(true)));
+  await Promise.all(users.map((user, index) => user.getByRole('textbox', { name: 'Code editor' }).fill(`code-user-${index} `)));
+  await Promise.all(users.map(user => user.context().setOffline(false)));
+  for (const user of users) for (let index = 0; index < 3; index++) await expect(user.getByRole('textbox', { name: 'Code editor' })).toHaveValue(new RegExp(`code-user-${index}`), { timeout: 20000 });
+  await expect.poll(async () => new Set(await Promise.all(users.map(user => user.getByRole('textbox', { name: 'Code editor' }).inputValue()))).size).toBe(1);
+  // Online typing continues in different lines without blocking either editor.
+  await Promise.all(users.map((user, index) => user.getByRole('textbox', { name: 'Code editor' }).press('Control+End').then(() => user.keyboard.insertText(`\nmore-${index}`))));
+  for (const user of users) for (let index = 0; index < 3; index++) await expect(user.getByRole('textbox', { name: 'Code editor' })).toHaveValue(new RegExp(`more-${index}`));
+  await page.reload();
+  await expect(page.locator('.notes-editor-content')).toContainText('notes-user-0');
+  await page.getByRole('tab', { name: 'Code', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: 'Code editor' })).toHaveValue(/more-2/);
+  await expect(page.locator('.sync-status details')).toHaveCount(0);
+  await Promise.all(contexts.map(context => context.close()));
 });
 test('landing page and accessible create dialog', async ({ page }) => {
   await page.goto('/');

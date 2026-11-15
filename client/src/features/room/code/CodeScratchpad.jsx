@@ -1,6 +1,7 @@
-import { useSharedDocument } from '../../../hooks/useSharedDocument';
+import { useCollaborativeDocument } from '../../../hooks/useCollaborativeDocument';
+import * as Y from 'yjs';
 import { SyncStatus } from '../../../components/SyncStatus';
-import { useState, useRef, useCallback, useMemo } from 'react';
+import { useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
 import { Copy, Check, Trash2, Code2, Play, Loader2, ChevronDown, ChevronUp, Terminal } from 'lucide-react';
 import { memberHeaders, SERVER_URL } from '../../../lib/socket';
 import './CodeScratchpad.css';
@@ -117,10 +118,51 @@ async function runCpp(code, roomCode) {
  *   actions: object,
  * }} props
  */
-export function CodeScratchpad({ initialCodeState, actions }) {
-  const initial = useMemo(() => initialCodeState || { code: '', language: 'python', revision: 0 }, [initialCodeState]);
-  const document = useSharedDocument('code', initial, actions.roomCode);
-  const { code, language } = document.value;
+export function CodeScratchpad({ actions }) {
+  const collaboration = useCollaborativeDocument('code', actions.roomCode);
+  return <div className="code-scratchpad">
+    <SyncStatus document={collaboration} />
+    {collaboration.ready ? <CodeEditor actions={actions} doc={collaboration.doc} /> : <p role="status">Joining shared code…</p>}
+  </div>;
+}
+function CodeEditor({ actions, doc }) {
+  const [value, setValue] = useState(() => ({ code: doc.getText('code').toString(), language: doc.getMap('settings').get('language') || 'python' }));
+  const { code, language } = value;
+  const selection = useRef(null);
+  const [undoManager] = useState(() => new Y.UndoManager(doc.getText('code'), { trackedOrigins: new Set(['local']) }));
+  useEffect(() => {
+    const text = doc.getText('code');
+    const before = transaction => {
+      const input = textareaRef.current;
+      if (transaction.origin === 'remote' && input === window.document.activeElement) {
+        selection.current = [Y.createRelativePositionFromTypeIndex(text, input.selectionStart), Y.createRelativePositionFromTypeIndex(text, input.selectionEnd)];
+      }
+    };
+    const update = () => setValue({ code: text.toString(), language: doc.getMap('settings').get('language') || 'python' });
+    doc.on('beforeTransaction', before); doc.on('update', update);
+    return () => { doc.off('beforeTransaction', before); doc.off('update', update); };
+  }, [doc]);
+  useLayoutEffect(() => {
+    if (selection.current && textareaRef.current) {
+      const [start, end] = selection.current.map(position => Y.createAbsolutePositionFromRelativePosition(position, doc)?.index);
+      if (start !== undefined && end !== undefined) textareaRef.current.setSelectionRange(start, end);
+      selection.current = null;
+    }
+  }, [value, doc]);
+  const change = ({ code: next, language: nextLanguage }) => {
+    const text = doc.getText('code');
+    const previous = text.toString();
+    let start = 0, suffix = 0;
+    while (start < previous.length && start < next.length && previous[start] === next[start]) start++;
+    while (suffix < previous.length - start && suffix < next.length - start && previous[previous.length - suffix - 1] === next[next.length - suffix - 1]) suffix++;
+    doc.transact(() => {
+      const removed = previous.length - start - suffix;
+      if (removed) text.delete(start, removed);
+      const added = next.slice(start, next.length - suffix);
+      if (added) text.insert(start, added);
+      if (doc.getMap('settings').get('language') !== nextLanguage) doc.getMap('settings').set('language', nextLanguage);
+    }, 'local');
+  };
   const [copied, setCopied] = useState(false);
 
   // Run state
@@ -129,17 +171,22 @@ export function CodeScratchpad({ initialCodeState, actions }) {
   const [outputOpen, setOutputOpen] = useState(false);
 
   const textareaRef = useRef(null);
-  const handleCodeChange = (e) => document.change({ code: e.target.value, language });
+  const handleCodeChange = (e) => change({ code: e.target.value, language });
   const handleLanguageChange = (e) => {
     const nextLanguage = e.target.value;
-    document.change({ code: code || DEFAULT_SNIPPETS[nextLanguage], language: nextLanguage });
+    change({ code: code || DEFAULT_SNIPPETS[nextLanguage], language: nextLanguage });
     setOutput(null);
   };
   const handleKeyDown = (e) => {
+    if ((e.ctrlKey || e.metaKey) && ['z', 'y'].includes(e.key.toLowerCase())) {
+      e.preventDefault();
+      if (e.key.toLowerCase() === 'y' || e.shiftKey) undoManager.redo(); else undoManager.undo();
+      return;
+    }
     if (e.key !== 'Tab') return;
     e.preventDefault();
     const start = e.target.selectionStart;
-    document.change({ code: code.slice(0, start) + '    ' + code.slice(e.target.selectionEnd), language });
+    change({ code: code.slice(0, start) + '    ' + code.slice(e.target.selectionEnd), language });
     requestAnimationFrame(() => { if (textareaRef.current) textareaRef.current.selectionStart = textareaRef.current.selectionEnd = start + 4; });
   };
 
@@ -153,7 +200,7 @@ export function CodeScratchpad({ initialCodeState, actions }) {
   const [confirmingClear, setConfirmingClear] = useState(false);
 
   const handleClear = () => {
-    document.change({ code: '', language });
+    change({ code: '', language });
     setOutput(null);
     setConfirmingClear(false);
   };
@@ -188,8 +235,7 @@ export function CodeScratchpad({ initialCodeState, actions }) {
   const outputHasError = hasOutput && (output.error || (output.exitCode !== 0 && output.exitCode !== undefined));
 
   return (
-    <div className="code-scratchpad">
-      <SyncStatus document={document} />
+    <div className="code-scratchpad" style={{ minHeight: 0, flex: 1 }}>
       {/* Header bar */}
       <div className="code-scratchpad__toolbar">
         <div className="code-scratchpad__toolbar-left">
