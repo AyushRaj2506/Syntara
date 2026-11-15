@@ -116,7 +116,6 @@ export function Modal({
     <div
       className={`modal-backdrop ${isClosing ? 'modal-backdrop--closing' : ''}`}
       onClick={closeOnBackdrop ? handleClose : undefined}
-      aria-hidden="true"
     >
       <div
         ref={panelRef}

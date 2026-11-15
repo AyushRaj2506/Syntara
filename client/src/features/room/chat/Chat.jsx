@@ -216,17 +216,13 @@ export function Chat({
     setTransferError('');
     for (const file of filesToSend) {
       try {
-        const messageId = crypto.randomUUID();
-        const transferResult = await sendFile(file, '');
-        const filePayload = {
-          fileId: transferResult.transferId,
-          fileName: file.name,
-          fileSize: file.size,
-          fileType: file.type || 'application/octet-stream',
-          url: transferResult.url ? transferResult.url.replace(SERVER_URL, '') : undefined,
-          fullUrl: transferResult.url,
-        };
-        actions.sendChat('', filePayload, messageId);
+        const result = await sendFile(file, '');
+        if (result.p2p) {
+          actions.appendLocalMessage({ id: result.transferId, type: 'user', participantId: meId,
+            displayName: participants[meId]?.displayName, text: '', createdAt: Date.now(), delivery: 'sent',
+            file: { fileId: result.transferId, fileName: file.name, fileSize: file.size, fileType: file.type, url: result.url, isBlob: true } });
+        } else actions.sendChat('', result.fileData, result.transferId);
+
       } catch (err) {
         console.error('[chat] File send failed:', err);
         const errMsg = err?.message || 'Please retry.';
@@ -351,7 +347,7 @@ export function Chat({
           </div>
           <div className="chat-internal-header__right">
             <span className="chat-internal-header__badge">
-              Zero-retention
+              Temporary room
             </span>
           </div>
         </div>
@@ -369,7 +365,7 @@ export function Chat({
         <div className="chat-drag-overlay" aria-hidden="true">
           <UploadCloud size={38} className="text-accent chat-drag-overlay__icon" />
           <span className="text-body-md font-semibold text-primary">Drop files here to share with the room</span>
-          <span className="text-caption text-tertiary">P2P encrypted & zero-retention transfer</span>
+          <span className="text-caption text-tertiary">Direct transfer with temporary server fallback</span>
         </div>
       )}
 
@@ -468,6 +464,7 @@ export function Chat({
                   >
                     <ChatMessage
                       msg={msg}
+                      onRetry={() => actions.sendChat(msg.text, msg.file, msg.id)}
                       meId={meId}
                       transfers={transfers}
                       isGrouped={isSameSender}
@@ -615,7 +612,7 @@ export function Chat({
       </div>
 
       {/* File Share Modal */}
-      <FileShareModal
+      {isShareModalOpen && <FileShareModal
         isOpen={isShareModalOpen}
         onClose={() => {
           setIsShareModalOpen(false);
@@ -623,13 +620,14 @@ export function Chat({
         }}
         onSendFiles={handleSendFiles}
         initialFiles={droppedFiles}
-      />
+      />}
     </div>
   );
 }
 
 function ChatMessage({
   msg,
+  onRetry,
   meId,
   transfers = {},
   isGrouped,
@@ -727,6 +725,8 @@ function ChatMessage({
       <div className="chat-msg__bubble-wrap">
         <div className={`chat-msg__bubble ${file ? 'chat-msg__bubble--has-file' : ''}`}>
           {msg.text && <p className="chat-msg__text text-body-sm">{msg.text}</p>}
+          {isMine && msg.delivery === 'pending' && <span role="status" className="text-caption">Sending...</span>}
+          {isMine && msg.delivery === 'failed' && <div role="alert" className="chat-delivery-error">{msg.error} <button onClick={onRetry}>Retry</button></div>}
 
           {/* File Attachment Card inside bubble */}
           {file && (
@@ -799,7 +799,7 @@ function ChatMessage({
                       </span>
                       <span className="chat-file-card__badge">
                         <Check size={11} className="text-success" />
-                        {isMine ? 'Sent via P2P' : 'Received via P2P'}
+                        {file.isBlob || file.url?.startsWith('blob:') ? 'Direct transfer' : 'Temporary server upload'}
                       </span>
                     </div>
                   </div>
@@ -825,7 +825,7 @@ function ChatMessage({
 
         {/* Message Hover Actions */}
         {msg.text && (
-          <div className="chat-msg-actions" aria-hidden="true">
+          <div className="chat-msg-actions">
             <button
               type="button"
               className="chat-msg-action-btn"

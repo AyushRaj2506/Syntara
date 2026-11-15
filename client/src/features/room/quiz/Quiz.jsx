@@ -15,6 +15,7 @@ import './Quiz.css';
  */
 export function Quiz({ quizState, meId: _meId, isHost, actions, participants: _participants }) {
   const [selectedOption, setSelectedOption] = useState(null);
+  const [creating, setCreating] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
 
   const status = quizState?.status;
@@ -27,7 +28,8 @@ export function Quiz({ quizState, meId: _meId, isHost, actions, participants: _p
   // Reset local option on question change
   useEffect(() => {
     setSelectedOption(null);
-  }, [currentIndex]);
+    setCreating(false);
+  }, [currentIndex, quizState?.quizId]);
 
   // Question timer countdown
   useEffect(() => {
@@ -48,6 +50,8 @@ export function Quiz({ quizState, meId: _meId, isHost, actions, participants: _p
     setSelectedOption(optIdx);
     actions.submitQuizAnswer(currentIndex, optIdx);
   };
+
+  if (creating && isHost) return <QuizCreator onStart={questions => { actions.startQuiz(questions); setCreating(false); }} />;
 
   // 1. NOT STARTED STATE
   if (!quizState || status === undefined) {
@@ -74,6 +78,7 @@ export function Quiz({ quizState, meId: _meId, isHost, actions, participants: _p
     return (
       <div className="quiz-takeover">
         <Leaderboard leaderboard={leaderboard || []} />
+        {isHost && <button className="room-ended__btn" onClick={() => setCreating(true)}>New quiz</button>}
       </div>
     );
   }

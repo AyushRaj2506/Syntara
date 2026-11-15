@@ -177,3 +177,8 @@
   flex-direction: column;
   gap: 3px;
 }
+
+@media (max-width: 767px) {
+  .toolbar-btn { width: 40px; height: 40px; }
+  .study-notes__toolbar { padding: 4px 8px; }
+}

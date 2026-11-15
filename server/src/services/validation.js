@@ -1,4 +1,5 @@
 const { z } = require('zod');
+const cleanText = (min, max) => z.string().transform(s => s.replace(/[\x00-\x1F\x7F]/g, '').trim()).pipe(z.string().min(min).max(max));
 
 const subjectEnum = z.enum([
   'Data Structures',
@@ -16,49 +17,31 @@ const roomTypeEnum = z.enum(['STUDY', 'CHAT']);
 
 const createRoomSchema = z.object({
   type: roomTypeEnum.default('STUDY'),
-  name: z
-    .string()
-    .min(3, 'Room name must be at least 3 characters')
-    .max(40, 'Room name must be at most 40 characters')
-    .transform((s) => s.replace(/[\x00-\x1F\x7F]/g, '').trim()),
+  name: cleanText(3, 40),
   subject: subjectEnum,
-  customSubject: z
-    .string()
-    .min(2)
-    .max(30)
-    .transform((s) => s.replace(/[\x00-\x1F\x7F]/g, '').trim())
-    .optional(),
+  customSubject: cleanText(2, 30).optional(),
   durationMin: z.number().int().min(5).max(1440).default(360),
   maxParticipants: z.number().int().min(2).max(100).default(50),
-  displayName: z
-    .string()
-    .min(1)
-    .max(24)
-    .transform((s) => s.replace(/[\x00-\x1F\x7F]/g, '').trim()),
+  displayName: cleanText(1, 24),
 });
 
 const joinRoomSchema = z.object({
   roomCode: z
     .string()
     .regex(/^[A-Z0-9]{2,5}-[A-Z0-9]{4,6}$/, 'Invalid room code format'),
-  displayName: z
-    .string()
-    .min(1)
-    .max(24)
-    .transform((s) => s.replace(/[\x00-\x1F\x7F]/g, '').trim())
-    .optional(),
+  displayName: cleanText(1, 24).optional(),
   participantToken: z.string().uuid().optional(),
 });
 
 const chatSendSchema = z.object({
-  id: z.string().optional(),
-  text: z.string().min(1).max(2000).optional(),
+  id: z.string().uuid().optional(),
+  text: z.string().max(2000).optional(),
   file: z.object({
     fileId: z.string(),
     fileName: z.string().max(255),
     fileSize: z.number().nonnegative(),
     fileType: z.string().max(100),
-    url: z.string(),
+    url: z.string().max(500).regex(/^\/api\/files\/[a-f0-9-]+\/[a-f0-9-]+$/),
   }).optional(),
 }).refine(data => data.text || data.file, {
   message: "Either text or file must be provided"
@@ -87,7 +70,7 @@ const focusStartSchema = z.object({
 });
 
 const goalCreateSchema = z.object({
-  text: z.string().min(1).max(200).transform((s) => s.trim()),
+  text: cleanText(1, 200),
 });
 
 const goalUpdateSchema = z.object({

@@ -1,4 +1,6 @@
-import { useEffect, useState, useRef } from 'react';
+import { useSharedDocument } from '../../../hooks/useSharedDocument';
+import { SyncStatus } from '../../../components/SyncStatus';
+import { useEffect, useState, useMemo } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -28,12 +30,11 @@ import './StudyNotes.css';
  *   actions: object,
  * }} props
  */
-export function StudyNotes({ initialContent, actions }) {
+export function StudyNotes({ initialContent, initialRevision, actions }) {
+  const initial = useMemo(() => ({ content: initialContent || '', revision: initialRevision }), [initialContent, initialRevision]);
+  const document = useSharedDocument('notes', initial, actions.roomCode);
   const [editingUsers, setEditingUsers] = useState({});
   const [confirmingClear, setConfirmingClear] = useState(false);
-  const isLocalUpdateRef = useRef(false);
-  const debounceTimerRef = useRef(null);
-  const presencePingTimerRef = useRef(null);
 
   const editor = useEditor({
     extensions: [
@@ -47,74 +48,28 @@ export function StudyNotes({ initialContent, actions }) {
         limit: 50000,
       }),
     ],
-    content: initialContent || '',
+    content: document.value.content || '',
     editorProps: {
       attributes: {
         class: 'notes-editor-content',
       },
     },
     onUpdate: ({ editor }) => {
-      isLocalUpdateRef.current = true;
-      const html = editor.getHTML();
-
-      // Throttled presence ping (1 every 2s)
-      if (!presencePingTimerRef.current) {
-        actions.pingEditing?.();
-        presencePingTimerRef.current = setTimeout(() => {
-          presencePingTimerRef.current = null;
-        }, 2000);
-      }
-
-      // Debounced broadcast (350ms)
-      clearTimeout(debounceTimerRef.current);
-      debounceTimerRef.current = setTimeout(() => {
-        actions.updateNotes?.(html);
-        isLocalUpdateRef.current = false;
-      }, 350);
+      document.change({ content: editor.getHTML() });
+      actions.pingEditing?.();
     },
   });
 
-  // Listen for remote note updates and clear events
   useEffect(() => {
-    const handleRemoteUpdate = ({ content }) => {
-      if (isLocalUpdateRef.current) return;
-      if (editor && content !== editor.getHTML()) {
-        const { from, to } = editor.state.selection;
-        editor.commands.setContent(content, false);
-        try {
-          editor.commands.setTextSelection({ from, to });
-        } catch {
-          // ignore bounds mismatch
-        }
-      }
-    };
-
-    const handleRemoteClear = () => {
-      if (editor) {
-        isLocalUpdateRef.current = false;
-        editor.commands.clearContent(true);
-      }
-    };
-
-    const handleEditingPresence = ({ participantId }) => {
-      setEditingUsers((prev) => ({
-        ...prev,
-        [participantId]: Date.now(),
-      }));
-    };
-
-    socket.on('notes:update', handleRemoteUpdate);
-    socket.on('notes:clear', handleRemoteClear);
-    socket.on('notes:editing', handleEditingPresence);
-
-    return () => {
-      socket.off('notes:update', handleRemoteUpdate);
-      socket.off('notes:clear', handleRemoteClear);
-      socket.off('notes:editing', handleEditingPresence);
-      clearTimeout(debounceTimerRef.current);
-      clearTimeout(presencePingTimerRef.current);
-    };
-  }, [editor, actions]);
+    if (editor && document.value.content !== editor.getHTML()) {
+      editor.commands.setContent(document.value.content || '', { emitUpdate: false });
+    }
+  }, [editor, document.value]);
+  useEffect(() => {
+    const presence = ({ participantId }) => setEditingUsers(prev => ({ ...prev, [participantId]: Date.now() }));
+    socket.on('notes:editing', presence);
+    return () => socket.off('notes:editing', presence);
+  }, []);
 
   // Clean stale presence pings every 1.5s
   useEffect(() => {
@@ -136,17 +91,7 @@ export function StudyNotes({ initialContent, actions }) {
     return () => clearInterval(interval);
   }, []);
 
-  const handleClearNotes = () => {
-    if (editor) {
-      clearTimeout(debounceTimerRef.current);
-      isLocalUpdateRef.current = true;
-      editor.commands.clearContent(true);
-      setTimeout(() => {
-        isLocalUpdateRef.current = false;
-      }, 400);
-    }
-    actions.clearNotes?.();
-  };
+  const handleClearNotes = () => document.change({ content: '' });
 
   const hasEditors = Object.keys(editingUsers).length > 0;
   const isEditorEmpty = editor ? editor.isEmpty : true;
@@ -155,6 +100,7 @@ export function StudyNotes({ initialContent, actions }) {
 
   return (
     <div className="study-notes">
+      <SyncStatus document={document} />
       {/* Toolbar */}
       <div className="study-notes__toolbar" role="toolbar" aria-label="Notes formatting toolbar">
         <div className="study-notes__tool-group">

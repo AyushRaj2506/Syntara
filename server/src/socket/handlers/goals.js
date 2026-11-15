@@ -26,6 +26,10 @@ function registerGoalsHandlers(io, socket) {
       createdAt: Date.now(),
     };
 
+    if (room.goals.length >= 100) {
+      socket.emit('error', { code: 'GOAL_LIMIT', message: 'Maximum 100 goals per room.' });
+      return;
+    }
     room.goals.push(goal);
     io.to(roomId).emit('goal:create', { goal });
   });

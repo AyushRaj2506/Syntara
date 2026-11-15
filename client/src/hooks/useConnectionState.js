@@ -32,13 +32,11 @@ export function useConnectionState() {
     }
 
     // Manager events for reconnection
-    socket.io.on('reconnect_attempt', () => {
-      setStatus('reconnecting');
-    });
+    const onAttempt = () => setStatus('reconnecting');
+    socket.io.on('reconnect_attempt', onAttempt);
 
-    socket.io.on('reconnect_failed', () => {
-      setStatus('disconnected');
-    });
+    const onFailed = () => setStatus('disconnected');
+    socket.io.on('reconnect_failed', onFailed);
 
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
@@ -57,8 +55,8 @@ export function useConnectionState() {
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
       socket.off('connect_error', onConnectError);
-      socket.io.off('reconnect_attempt');
-      socket.io.off('reconnect_failed');
+      socket.io.off('reconnect_attempt', onAttempt);
+      socket.io.off('reconnect_failed', onFailed);
     };
   }, []);
 

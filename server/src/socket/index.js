@@ -10,26 +10,9 @@ const { registerCodeHandlers } = require('./handlers/code');
 const { registerWebRTCHandlers } = require('./handlers/webrtc');
 
 
-/** @type {Map<string, number>} IP → room creation count in current window */
-const ipRoomCreationMap = new Map();
-const RATE_WINDOW_MS = 60 * 60 * 1000; // 1 hour
-const MAX_ROOMS_PER_IP = parseInt(process.env.MAX_ROOMS_PER_IP_PER_HOUR ?? '10', 10);
-
-/**
- * @param {string} ip
- * @returns {boolean}
- */
-function isIpRateLimited(ip) {
-  const now = Date.now();
-  const entry = ipRoomCreationMap.get(ip) ?? { count: 0, windowStart: now };
-  if (now - entry.windowStart > RATE_WINDOW_MS) {
-    entry.count = 0;
-    entry.windowStart = now;
-  }
-  entry.count++;
-  ipRoomCreationMap.set(ip, entry);
-  return entry.count > MAX_ROOMS_PER_IP;
-}
+const { rateLimit } = require('../services/rateLimit');
+const isIpRateLimited = rateLimit(Number(process.env.MAX_ROOMS_PER_IP_PER_HOUR || 10), 3600000);
+const eventLimited = rateLimit(300, 1000);
 
 /**
  * Initialize the Socket.IO server and register all handlers.
@@ -42,6 +25,18 @@ function initSocketServer(io) {
 
     // IP-level rate limit on room creation (checked inside room handler but gate early)
     socket.use(([event, ...args], next) => {
+      const room = roomStore.getById(socket.data.roomId);
+      if (room && room.expiresAt <= Date.now() && !['room:create', 'room:join', 'room:leave'].includes(event)) {
+        const ack = args[args.length - 1];
+        if (typeof ack === 'function') ack({ error: { message: 'Room has ended.' } });
+        socket.emit('room:closed', { reason: 'expired' });
+        return;
+      }
+      if (eventLimited(socket.id)) {
+        const ack = args[args.length - 1];
+        if (typeof ack === 'function') ack({ error: { code: 'RATE_LIMITED', message: 'Too many requests.' } });
+        return;
+      }
       if (event === 'room:create' && isIpRateLimited(ip)) {
         const ack = args[args.length - 1];
         if (typeof ack === 'function') {

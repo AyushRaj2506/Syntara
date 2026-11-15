@@ -1,5 +1,6 @@
 const { roomStore } = require('./RoomStore');
-const { deleteRoomUploads } = require('./roomUtils');
+const { deleteRoomUploads, UPLOAD_DIR } = require('./roomUtils');
+const fs = require('fs');
 
 const CLEANUP_INTERVAL_MS = parseInt(process.env.ROOM_CLEANUP_INTERVAL_MS ?? '60000', 10);
 
@@ -13,6 +14,12 @@ const CLEANUP_INTERVAL_MS = parseInt(process.env.ROOM_CLEANUP_INTERVAL_MS ?? '60
  * @param {import('socket.io').Server} io
  */
 function startCleanupSweep(io) {
+  // On a fresh process all previous in-memory rooms are gone. Remove orphaned uploads.
+  for (const entry of fs.readdirSync(UPLOAD_DIR, { withFileTypes: true })) {
+    if (entry.isDirectory() && /^(?:[a-f0-9-]{36}|[A-Z0-9]{2,5}-[A-Z0-9]{4,6}|global)$/.test(entry.name) && !roomStore.getById(entry.name) && !roomStore.getByCode(entry.name)) {
+      deleteRoomUploads(entry.name);
+    }
+  }
   setInterval(() => {
     const now = Date.now();
     for (const room of roomStore.all()) {

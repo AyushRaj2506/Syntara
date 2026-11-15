@@ -11,3 +11,7 @@ export const socket = io(SERVER_URL, {
   reconnectionDelayMax: 5000,
   autoConnect: false, // connect manually on room join
 });
+
+export function memberHeaders(roomCode) {
+  return { 'X-Room-Code': roomCode, Authorization: `Bearer ${sessionStorage.getItem(`syntara:session:${roomCode}`) || ''}` };
+}

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Copy, Check, Users, MoreHorizontal, LogOut, Clock, ShieldCheck } from 'lucide-react';
 import { BrandMark } from '../landing/BrandMark';
 import { formatExpiry } from '../../lib/formatters';
@@ -17,6 +17,11 @@ import './RoomTopBar.css';
 export function RoomTopBar({ room, me: _me, connectionStatus, onOpenDrawer, onLeave }) {
   const [copied, setCopied] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [, setClock] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => setClock(value => value + 1), 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const copyCode = () => {
     navigator.clipboard.writeText(room.roomCode).then(() => {
@@ -133,7 +138,7 @@ export function RoomTopBar({ room, me: _me, connectionStatus, onOpenDrawer, onLe
             >
               <div className="room-top-bar__dropdown-meta">
                 <ShieldCheck size={13} className="text-accent" />
-                <span className="text-caption text-secondary">Zero-retention room</span>
+                <span className="text-caption text-secondary">Temporary room</span>
               </div>
               <div className="room-top-bar__dropdown-divider" />
               <button

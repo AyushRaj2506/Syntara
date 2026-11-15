@@ -222,11 +222,10 @@ export function Whiteboard({ initialStrokes = [], participantId, actions }) {
   const prevStrokesLengthRef = useRef(-1);
   useEffect(() => {
     if (!initialStrokes) return;
-    const prev = prevStrokesLengthRef.current;
     const next = initialStrokes.length;
 
     // Sync strokesRef on: first mount, undo/clear (length decreases), or new commits
-    if (prev === -1 || next !== prev) {
+    {
       strokesRef.current = [...initialStrokes];
       setHasStrokes(initialStrokes.length > 0);
       // Use rAF to avoid drawing to a 0x0 canvas when the pane is first revealed
@@ -334,6 +333,7 @@ export function Whiteboard({ initialStrokes = [], participantId, actions }) {
 
     drawSegment(lastPointRef.current, pt, activeStrokeRef.current.color, activeStrokeRef.current.size);
 
+    if (activeStrokeRef.current.points.length >= 1998) activeStrokeRef.current.points = activeStrokeRef.current.points.filter((_, i) => i % 2 === 0);
     activeStrokeRef.current.points.push(pt);
     lastPointRef.current = pt;
 
@@ -355,7 +355,8 @@ export function Whiteboard({ initialStrokes = [], participantId, actions }) {
     const pt = getNormalizedPoint(e);
     if (lastPointRef.current) {
       drawSegment(lastPointRef.current, pt, activeStrokeRef.current.color, activeStrokeRef.current.size);
-      activeStrokeRef.current.points.push(pt);
+      if (activeStrokeRef.current.points.length >= 1998) activeStrokeRef.current.points = activeStrokeRef.current.points.filter((_, i) => i % 2 === 0);
+    activeStrokeRef.current.points.push(pt);
     }
 
     // Push to local strokesRef immediately for correct local undo

@@ -393,46 +393,37 @@
   transform: translateY(0);
 }
 
-/* ---- Responsive Breakpoints ---- */
-@media (max-width: 1080px) {
-  .room-layout__left {
-    display: none;
+/* One mounted workspace at every breakpoint preserves editors and peer connections. */
+.room-panel-close { display: none; }
+.room-layout__tabs { overflow-x: auto; }
+.room-layout__tab { min-height: 44px; }
+.room-workspace-pane:not(.room-workspace-pane--active) { display: none; visibility: hidden; }
+@media (max-width: 1080px) and (min-width: 768px) {
+  .room-layout__left { display: none; }
+  .room-layout__body--chat-only { grid-template-columns: minmax(0, 1fr); }
+  .room-layout--drawer .room-layout__left {
+    display: flex; position: absolute; left: 12px; top: 64px; bottom: 12px;
+    width: min(320px, 85vw); z-index: 50; box-shadow: 0 12px 60px #0008;
   }
-  /* Chat room: collapse sidebar into drawer */
-  .room-layout__body--chat-only {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .room-layout__left--chat-mode {
-    display: none;
-  }
-  .tablet-drawer-backdrop {
-    display: block;
-  }
+  .room-panel-close { display: block; align-self: flex-end; padding: 12px; background: none; color: inherit; border: 0; }
+  .room-layout__right { width: clamp(240px, 34vw, 340px); }
 }
-
-@media (max-width: 820px) {
-  .room-layout__right {
-    display: none;
-  }
-}
-
 @media (max-width: 767px) {
-  .room-layout__body,
-  .room-layout__body--chat-only {
-    display: none;
-  }
-  .mobile-tab-bar {
-    display: flex;
-  }
-  .mobile-content {
-    display: block;
-    flex: 1;
-    position: relative;
-    height: calc(100dvh - 48px - 54px);
-    overflow: hidden;
-  }
-  .tablet-drawer-backdrop {
-    display: none;
-  }
+  .room-layout__body, .room-layout__body--chat-only { display: flex; position: relative; padding: 8px; margin-bottom: calc(58px + env(safe-area-inset-bottom)); }
+  .mobile-tab-bar { display: flex; overflow-x: auto; }
+  .mobile-tab-bar__btn { min-width: 48px; min-height: 58px; }
+  .mobile-tab-bar__label { font-size: 11px; }
+  .room-layout__left, .room-layout__center, .room-layout__right { display: none; width: 100%; }
+  .room-layout[data-mobile-tab="chat"] .room-chat-panel { display: flex; }
+  .room-layout[data-mobile-tab="notes"] main,
+  .room-layout[data-mobile-tab="whiteboard"] main,
+  .room-layout[data-mobile-tab="code"] main,
+  .room-layout[data-mobile-tab="quiz"] main { display: flex; }
+  .room-layout[data-mobile-tab="focus"] .room-layout__left,
+  .room-layout[data-mobile-tab="goals"] .room-layout__left,
+  .room-layout[data-mobile-tab="members"] .room-layout__left { display: flex; }
+  .room-section, .room-layout__tabs-bar { display: none; }
+  .room-layout[data-mobile-tab="focus"] .room-section--focus,
+  .room-layout[data-mobile-tab="goals"] .room-section--goals,
+  .room-layout[data-mobile-tab="members"] .room-section--members { display: block; }
 }
-

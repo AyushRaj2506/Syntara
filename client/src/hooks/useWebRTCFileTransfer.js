@@ -1,621 +1,168 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { socket, SERVER_URL } from '../lib/socket';
+import { socket, SERVER_URL, memberHeaders } from '../lib/socket';
+const CHUNK = 16 * 1024;
+const MAX_BYTES = 250 * 1024 * 1024;
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-const CHUNK_SIZE = 16 * 1024; // 16 KB chunk for optimal WebRTC DataChannel delivery
-const BUFFERED_AMOUNT_HIGH_WATERMARK = 64 * 1024; // 64 KB backpressure threshold
-
-const ICE_SERVERS = [
-  { urls: 'stun:stun.l.google.com:19302' },
-  { urls: 'stun:stun1.l.google.com:19302' },
-  { urls: 'stun:stun2.l.google.com:19302' },
-  { urls: 'stun:stun3.l.google.com:19302' },
-  { urls: 'stun:stun4.l.google.com:19302' },
-  { urls: 'stun:stun.cloudflare.com:3478' },
-];
-
-/**
- * WebRTC DataChannel P2P file transfer manager with chunking, backpressure and state machine.
- *
- * @param {{
- *   roomId?: string,
- *   myParticipantId?: string,
- *   participants?: Record<string, any> | any[],
- *   onFileReceived?: (fileData: {
- *     transferId: string,
- *     fileName: string,
- *     fileSize: number,
- *     fileType: string,
- *     blob: Blob,
- *     url: string,
- *     senderDisplayName: string,
- *     senderParticipantId: string,
- *     caption?: string,
- *   }) => void,
- * }} params
- */
-export function useWebRTCFileTransfer({
-  roomId,
-  myParticipantId,
-  participants = {},
-  onFileReceived,
-}) {
-  // Map of peer connections: participantId -> RTCPeerConnection
-  const peerConnectionsRef = useRef(new Map());
-  // Map of data channels: participantId -> RTCDataChannel
-  const dataChannelsRef = useRef(new Map());
-  // Map of queued ICE candidates arriving before setRemoteDescription: participantId -> candidate[]
-  const pendingCandidatesRef = useRef(new Map());
-
-  // Active in-progress transfers (both sending and receiving)
-  // transferId -> { id, fileName, fileSize, fileType, progress, status, error, isSender, blob, url }
+export function useWebRTCFileTransfer({ roomId, myParticipantId, participants = {}, onFileReceived }) {
+  const peers = useRef(new Map());
+  const channels = useRef(new Map());
+  const incoming = useRef(new Map());
+  const receipts = useRef(new Map());
+  const urls = useRef(new Set());
+  const latest = useRef({ participants, onFileReceived });
   const [transfers, setTransfers] = useState({});
+  useEffect(() => { latest.current = { participants, onFileReceived }; }, [participants, onFileReceived]);
+  const update = useCallback((id, state) => setTransfers(prev => ({ ...prev, [id]: { ...prev[id], id, ...state } })), []);
+  const objectUrl = file => { const url = URL.createObjectURL(file); urls.current.add(url); return url; };
 
-  // Incoming chunks buffer: transferId -> { metadata, chunks: ArrayBuffer[], receivedBytes: number }
-  const incomingTransfersRef = useRef(new Map());
-
-  // Safe ref for onFileReceived callback
-  const onFileReceivedRef = useRef(onFileReceived);
-  useEffect(() => {
-    onFileReceivedRef.current = onFileReceived;
-  }, [onFileReceived]);
-
-  const handleIncomingDataRef = useRef(null);
-
-  // Initialize or teardown peer connection for a participant
-  const createPeerConnection = useCallback((targetParticipantId, isInitiator = false) => {
-    if (peerConnectionsRef.current.has(targetParticipantId)) {
-      return peerConnectionsRef.current.get(targetParticipantId);
-    }
-
-    console.log(`[webrtc] Creating RTCPeerConnection to peer: ${targetParticipantId} (initiator: ${isInitiator})`);
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-    peerConnectionsRef.current.set(targetParticipantId, pc);
-
-    pc.onicecandidate = (event) => {
-      if (event.candidate) {
-        socket.emit('webrtc:signal', {
-          targetParticipantId,
-          signal: { type: 'ice', candidate: event.candidate },
-        });
-      }
-    };
-
-    pc.oniceconnectionstatechange = () => {
-      console.log(`[webrtc] ICE connection state with ${targetParticipantId}: ${pc.iceConnectionState}`);
-    };
-
-    pc.onconnectionstatechange = () => {
-      console.log(`[webrtc] Peer connection state with ${targetParticipantId}: ${pc.connectionState}`);
-    };
-
-    const setupDataChannel = (dc) => {
+  const createPeer = useCallback((id, initiator) => {
+    if (peers.current.has(id)) return peers.current.get(id);
+    const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+    pc.pendingIce = [];
+    peers.current.set(id, pc);
+    pc.onicecandidate = e => { if (e.candidate) socket.emit('webrtc:signal', { targetParticipantId: id, signal: { type: 'ice', candidate: e.candidate } }); };
+    const setup = dc => {
+      channels.current.set(id, dc);
       dc.binaryType = 'arraybuffer';
-      dataChannelsRef.current.set(targetParticipantId, dc);
-
-      dc.onopen = () => {
-        console.log(`[webrtc] DataChannel OPEN with peer: ${targetParticipantId}`);
-      };
-
-      dc.onclose = () => {
-        console.log(`[webrtc] DataChannel CLOSED with peer: ${targetParticipantId}`);
-        dataChannelsRef.current.delete(targetParticipantId);
-      };
-
-      dc.onerror = (err) => {
-        console.warn(`[webrtc] DataChannel ERROR with peer ${targetParticipantId}:`, err);
-      };
-
-      dc.onmessage = (event) => {
-        handleIncomingDataRef.current?.(event.data, targetParticipantId);
+      dc.bufferedAmountLowThreshold = 64 * 1024;
+      dc.onmessage = ({ data }) => {
+        try {
+          if (typeof data === 'string') {
+            const msg = JSON.parse(data);
+            if (msg.type === 'receipt') { receipts.current.get(msg.transferId)?.add(id); return; }
+            if (msg.type === 'cancel') { incoming.current.delete(`${id}:${msg.transferId}`); update(msg.transferId, { status: 'CANCELLED' }); return; }
+            if (msg.type === 'start') {
+              const reserved = [...incoming.current.values()].reduce((sum, t) => sum + t.fileSize, 0);
+              if (!/^[a-f0-9-]{36}$/.test(msg.transferId) || !Number.isSafeInteger(msg.fileSize) || msg.fileSize < 0 || msg.fileSize > MAX_BYTES || reserved + msg.fileSize > MAX_BYTES || incoming.current.size >= 8) return;
+              if (typeof msg.fileName !== 'string' || msg.fileName.length > 255) return;
+              incoming.current.set(`${id}:${msg.transferId}`, { ...msg, chunks: [], bytes: 0, updated: Date.now() });
+              update(msg.transferId, { fileName: msg.fileName, fileSize: msg.fileSize, status: 'RECEIVING', progress: 0, senderDisplayName: latest.current.participants[id]?.displayName || 'Participant' });
+            }
+            if (msg.type === 'end') {
+              const transfer = incoming.current.get(`${id}:${msg.transferId}`);
+              if (!transfer || transfer.bytes !== transfer.fileSize) return;
+              const blob = new Blob(transfer.chunks, { type: transfer.fileType || 'application/octet-stream' });
+              const url = objectUrl(blob);
+              incoming.current.delete(`${id}:${msg.transferId}`);
+              update(msg.transferId, { url, status: 'RECEIVED', progress: 100 });
+              latest.current.onFileReceived?.({ ...transfer, blob, url, senderParticipantId: id, senderDisplayName: latest.current.participants[id]?.displayName || 'Participant' });
+              dc.send(JSON.stringify({ type: 'receipt', transferId: msg.transferId }));
+            }
+          } else if (data instanceof ArrayBuffer && data.byteLength >= 36 && data.byteLength <= CHUNK + 36) {
+            const transferId = new TextDecoder().decode(new Uint8Array(data, 0, 36));
+            const transfer = incoming.current.get(`${id}:${transferId}`);
+            if (!transfer) return;
+            const chunk = data.slice(36);
+            if (transfer.bytes + chunk.byteLength > transfer.fileSize) { incoming.current.delete(`${id}:${transferId}`); return; }
+            transfer.chunks.push(chunk);
+            transfer.bytes += chunk.byteLength;
+            transfer.updated = Date.now();
+            update(transferId, { status: 'RECEIVING', progress: Math.floor(transfer.bytes / Math.max(1, transfer.fileSize) * 100) });
+          }
+        } catch { /* Ignore malformed peer frames. */ }
       };
     };
-
-    if (isInitiator) {
-      const dc = pc.createDataChannel('fileTransfer', { ordered: true });
-      setupDataChannel(dc);
-
-      pc.createOffer()
-        .then((offer) => pc.setLocalDescription(offer))
-        .then(() => {
-          socket.emit('webrtc:signal', {
-            targetParticipantId,
-            signal: { type: 'offer', sdp: pc.localDescription },
-          });
-        })
-        .catch((err) => console.warn('[webrtc] Create offer error:', err));
-    } else {
-      pc.ondatachannel = (event) => {
-        console.log(`[webrtc] Received DataChannel from peer: ${targetParticipantId}`);
-        setupDataChannel(event.channel);
-      };
+    pc.ondatachannel = e => setup(e.channel);
+    if (initiator) {
+      setup(pc.createDataChannel('files', { ordered: true }));
+      pc.createOffer().then(offer => pc.setLocalDescription(offer)).then(() => {
+        socket.emit('webrtc:signal', { targetParticipantId: id, signal: { type: 'offer', sdp: pc.localDescription } });
+      }).catch(() => {});
     }
-
     return pc;
-  }, []);
-
-  // Handle incoming data channel messages
-  const handleIncomingData = (data, senderParticipantId) => {
-    if (typeof data === 'string') {
-      try {
-        const msg = JSON.parse(data);
-        if (msg.type === 'file-start') {
-          const { transferId, fileName, fileSize, fileType, totalChunks, caption, senderDisplayName } = msg;
-          incomingTransfersRef.current.set(transferId, {
-            metadata: { transferId, fileName, fileSize, fileType, totalChunks, caption, senderDisplayName, senderParticipantId },
-            chunks: [],
-            receivedBytes: 0,
-          });
-
-          setTransfers((prev) => ({
-            ...prev,
-            [transferId]: {
-              id: transferId,
-              fileName,
-              fileSize,
-              fileType,
-              progress: 0,
-              status: 'RECEIVING',
-              senderDisplayName,
-              senderParticipantId,
-              caption,
-              isSender: false,
-            },
-          }));
-        } else if (msg.type === 'file-cancel') {
-          const { transferId } = msg;
-          incomingTransfersRef.current.delete(transferId);
-          setTransfers((prev) => ({
-            ...prev,
-            [transferId]: {
-              ...prev[transferId],
-              status: 'CANCELLED',
-            },
-          }));
-        }
-      } catch (err) {
-        console.warn('[webrtc] Failed to parse control message:', err);
-      }
-      return;
-    }
-
-    // Binary chunk: Read 36-byte UUID header + 4-byte chunk index
-    if (data instanceof ArrayBuffer) {
-      try {
-        const headerLength = 36; // transferId string length
-        const decoder = new TextDecoder();
-        const transferId = decoder.decode(new Uint8Array(data, 0, headerLength)).trim();
-        const chunkData = data.slice(headerLength);
-
-        const current = incomingTransfersRef.current.get(transferId);
-        if (!current) return;
-
-        current.chunks.push(chunkData);
-        current.receivedBytes += chunkData.byteLength;
-
-        const progress = Math.min(100, Math.round((current.receivedBytes / current.metadata.fileSize) * 100));
-
-        setTransfers((prev) => {
-          const existing = prev[transferId];
-          if (!existing) return prev;
-          return {
-            ...prev,
-            [transferId]: {
-              ...existing,
-              progress,
-              status: progress >= 100 ? 'RECEIVED' : 'PROGRESS',
-            },
-          };
-        });
-
-        // If transfer complete
-        if (current.chunks.length >= current.metadata.totalChunks || current.receivedBytes >= current.metadata.fileSize) {
-          const blob = new Blob(current.chunks, { type: current.metadata.fileType || 'application/octet-stream' });
-          const url = URL.createObjectURL(blob);
-
-          setTransfers((prev) => ({
-            ...prev,
-            [transferId]: {
-              ...prev[transferId],
-              progress: 100,
-              status: 'RECEIVED',
-              blob,
-              url,
-            },
-          }));
-
-          onFileReceivedRef.current?.({
-            transferId,
-            fileName: current.metadata.fileName,
-            fileSize: current.metadata.fileSize,
-            fileType: current.metadata.fileType,
-            blob,
-            url,
-            senderDisplayName: current.metadata.senderDisplayName,
-            senderParticipantId: current.metadata.senderParticipantId,
-            caption: current.metadata.caption,
-          });
-
-          incomingTransfersRef.current.delete(transferId);
-        }
-      } catch (err) {
-        console.warn('[webrtc] Chunk processing error:', err);
-      }
-    }
-  };
+  }, [update]);
 
   useEffect(() => {
-    handleIncomingDataRef.current = handleIncomingData;
-  });
-
-  // Socket signaling listener
-  useEffect(() => {
-    const handleSignal = async ({ senderParticipantId, signal }) => {
-      if (!signal || !senderParticipantId) return;
-
-      let pc = peerConnectionsRef.current.get(senderParticipantId);
-      if (!pc) {
-        pc = createPeerConnection(senderParticipantId, false);
-      }
-
+    const peerMap = peers.current, channelMap = channels.current, incomingMap = incoming.current, urlSet = urls.current;
+    const signal = async ({ senderParticipantId: id, signal: message }) => {
+      if (!latest.current.participants[id] || id === myParticipantId) return;
+      const pc = createPeer(id, false);
       try {
-        if (signal.type === 'offer') {
-          // If connection was already in stable or another state, check state
-          if (pc.signalingState !== 'stable') {
-            await Promise.all([
-              pc.setLocalDescription({ type: 'rollback' }).catch(() => {}),
-            ]);
-          }
-
-          await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
-
-          // Flush any pending ICE candidates queued before remoteDescription was set
-          const pending = pendingCandidatesRef.current.get(senderParticipantId) || [];
-          for (const cand of pending) {
-            try {
-              await pc.addIceCandidate(new RTCIceCandidate(cand));
-            } catch (e) {
-              console.warn('[webrtc] Pending ICE add error:', e);
-            }
-          }
-          pendingCandidatesRef.current.delete(senderParticipantId);
-
-          const answer = await pc.createAnswer();
-          await pc.setLocalDescription(answer);
-          socket.emit('webrtc:signal', {
-            targetParticipantId: senderParticipantId,
-            signal: { type: 'answer', sdp: pc.localDescription },
-          });
-        } else if (signal.type === 'answer') {
-          if (pc.signalingState === 'have-local-offer') {
-            await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
-
-            // Flush any pending ICE candidates
-            const pending = pendingCandidatesRef.current.get(senderParticipantId) || [];
-            for (const cand of pending) {
-              try {
-                await pc.addIceCandidate(new RTCIceCandidate(cand));
-              } catch (e) {
-                console.warn('[webrtc] Pending ICE add error:', e);
-              }
-            }
-            pendingCandidatesRef.current.delete(senderParticipantId);
-          }
-        } else if (signal.type === 'ice') {
-          if (signal.candidate) {
-            if (!pc.remoteDescription) {
-              const pending = pendingCandidatesRef.current.get(senderParticipantId) || [];
-              pending.push(signal.candidate);
-              pendingCandidatesRef.current.set(senderParticipantId, pending);
-            } else {
-              await pc.addIceCandidate(new RTCIceCandidate(signal.candidate)).catch((err) => {
-                console.warn('[webrtc] addIceCandidate error:', err);
-              });
-            }
+        if (message.type === 'ice') {
+          if (pc.remoteDescription) await pc.addIceCandidate(message.candidate);
+          else if (pc.pendingIce.length < 100) pc.pendingIce.push(message.candidate);
+        } else if (message.type === 'offer' || message.type === 'answer') {
+          await pc.setRemoteDescription(message.sdp);
+          for (const candidate of pc.pendingIce.splice(0)) await pc.addIceCandidate(candidate);
+          if (message.type === 'offer') {
+            await pc.setLocalDescription(await pc.createAnswer());
+            socket.emit('webrtc:signal', { targetParticipantId: id, signal: { type: 'answer', sdp: pc.localDescription } });
           }
         }
-      } catch (err) {
-        console.warn('[webrtc] Signal handling error:', err);
+      } catch { /* sendFile will use authenticated fallback when negotiation fails. */ }
+    };
+    socket.on('webrtc:signal', signal);
+    const sweep = setInterval(() => {
+      for (const [key, transfer] of incoming.current) if (Date.now() - transfer.updated > 60000) {
+        incoming.current.delete(key);
+        update(transfer.transferId, { status: 'FAILED' });
       }
-    };
-
-    const handleFileAnnounce = (announce) => {
-      const { transferId, fileName, fileSize, fileType, caption, senderDisplayName, senderParticipantId } = announce;
-      setTransfers((prev) => ({
-        ...prev,
-        [transferId]: {
-          id: transferId,
-          fileName,
-          fileSize,
-          fileType,
-          caption,
-          progress: 0,
-          status: 'PREPARING',
-          senderDisplayName,
-          senderParticipantId,
-          isSender: false,
-        },
-      }));
-    };
-
-    socket.on('webrtc:signal', handleSignal);
-    socket.on('webrtc:file-announce', handleFileAnnounce);
-
+    }, 10000);
     return () => {
-      socket.off('webrtc:signal', handleSignal);
-      socket.off('webrtc:file-announce', handleFileAnnounce);
+      socket.off('webrtc:signal', signal);
+      clearInterval(sweep);
+      for (const pc of peerMap.values()) pc.close();
+      peerMap.clear(); channelMap.clear(); incomingMap.clear();
+      for (const url of urlSet) URL.revokeObjectURL(url);
+      urlSet.clear();
     };
-  }, [createPeerConnection]);
-
-  // Initiate peer connections to other participants when room participants change
+  }, [createPeer, myParticipantId, update]);
   useEffect(() => {
     if (!myParticipantId) return;
-
-    // Extract valid string peer IDs regardless of whether participants is Object or Array
-    const peerIds = Array.isArray(participants)
-      ? participants
-          .map((p) => (typeof p === 'string' ? p : p?.participantId))
-          .filter((id) => Boolean(id) && id !== myParticipantId)
-      : Object.keys(participants).filter((id) => id !== myParticipantId);
-
-    peerIds.forEach((targetId) => {
-      // Deterministic initiator: lexicographically smaller participantId creates offer
-      if (myParticipantId < targetId && !peerConnectionsRef.current.has(targetId)) {
-        createPeerConnection(targetId, true);
-      }
-    });
-
-    // Cleanup disconnected peers
-    for (const [id, pc] of peerConnectionsRef.current.entries()) {
-      const isPresent = Array.isArray(participants)
-        ? participants.some((p) => (typeof p === 'string' ? p === id : p?.participantId === id))
-        : Boolean(participants[id]);
-
-      if (!isPresent) {
-        console.log(`[webrtc] Closing peer connection to departed peer: ${id}`);
-        pc.close();
-        peerConnectionsRef.current.delete(id);
-        dataChannelsRef.current.delete(id);
-        pendingCandidatesRef.current.delete(id);
-      }
+    for (const [id, participant] of Object.entries(participants)) {
+      if (id !== myParticipantId && participant.status === 'connected' && myParticipantId < id) createPeer(id, true);
     }
-  }, [participants, myParticipantId, createPeerConnection]);
+    for (const [id, pc] of peers.current) if (!participants[id] || participants[id].status !== 'connected') {
+      pc.close(); peers.current.delete(id); channels.current.delete(id);
+    }
+  }, [participants, myParticipantId, createPeer]);
 
-  /**
-   * Wait up to `timeoutMs` for any data channel to open.
-   * Returns the list of open channels, or empty array on timeout.
-   */
-  const waitForAnyChannelOpen = useCallback((timeoutMs = 5000) => {
-    return new Promise((resolve) => {
-      const open = Array.from(dataChannelsRef.current.values()).filter(
-        (dc) => dc.readyState === 'open'
-      );
-      if (open.length > 0) {
-        resolve(open);
-        return;
-      }
-
-      // Check if any channel is in connecting state — worth waiting
-      const connecting = Array.from(dataChannelsRef.current.values()).filter(
-        (dc) => dc.readyState === 'connecting'
-      );
-      if (connecting.length === 0) {
-        resolve([]);
-        return;
-      }
-
-      const cleanups = [];
-      const done = (channels) => {
-        cleanups.forEach((fn) => fn());
-        resolve(channels);
-      };
-
-      const timeout = setTimeout(() => done([]), timeoutMs);
-      cleanups.push(() => clearTimeout(timeout));
-
-      for (const dc of connecting) {
-        const onOpen = () => {
-          const nowOpen = Array.from(dataChannelsRef.current.values()).filter(
-            (d) => d.readyState === 'open'
-          );
-          done(nowOpen);
-        };
-        dc.addEventListener('open', onOpen);
-        cleanups.push(() => dc.removeEventListener('open', onOpen));
-      }
-    });
-  }, []);
-
-  /**
-   * Send a file using WebRTC DataChannel chunking with backpressure.
-   * Waits up to 5s for channel negotiation before falling back to REST upload.
-   *
-   * @param {File} file
-   * @param {string} [caption]
-   * @returns {Promise<{ transferId: string, url?: string }>}
-   */
   const sendFile = useCallback(async (file, caption = '') => {
+    if (file.size > MAX_BYTES) throw new Error('Maximum file size is 250 MB.');
     const transferId = crypto.randomUUID();
-    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-
-    // Initial state: PREPARING
-    setTransfers((prev) => ({
-      ...prev,
-      [transferId]: {
-        id: transferId,
-        fileName: file.name,
-        fileSize: file.size,
-        fileType: file.type || 'application/octet-stream',
-        progress: 0,
-        status: 'PREPARING',
-        caption,
-        isSender: true,
-      },
-    }));
-
-    // Announce to all room members
-    socket.emit('webrtc:file-announce', {
-      transferId,
-      fileName: file.name,
-      fileSize: file.size,
-      fileType: file.type || 'application/octet-stream',
-      caption,
-    });
-
-    // Wait for open channels (up to 5s for P2P negotiation to complete)
-    const openChannels = await waitForAnyChannelOpen(5000);
-
-    // If active WebRTC channels are available, stream chunks over DataChannel
-    if (openChannels.length > 0) {
-      setTransfers((prev) => ({
-        ...prev,
-        [transferId]: { ...prev[transferId], status: 'SENDING', progress: 0 },
-      }));
-
-      // Send file-start metadata message
-      const startMsg = JSON.stringify({
-        type: 'file-start',
-        transferId,
-        fileName: file.name,
-        fileSize: file.size,
-        fileType: file.type || 'application/octet-stream',
-        totalChunks,
-        caption,
-      });
-
-      openChannels.forEach((dc) => {
-        try { dc.send(startMsg); } catch (e) { console.warn(e); }
-      });
-
-      // Stream file slices
-      const encoder = new TextEncoder();
-      const headerBytes = encoder.encode(transferId.padEnd(36, ' '));
-      let lastProgress = -1;
-      let activeChannels = openChannels.length;
-
-      for (let i = 0; i < totalChunks; i++) {
-        // If all channels closed during transfer, abort
-        if (activeChannels === 0) {
-          throw new Error('All peers disconnected during transfer');
-        }
-
-        const start = i * CHUNK_SIZE;
-        const end = Math.min(start + CHUNK_SIZE, file.size);
-        const slice = file.slice(start, end);
-        const arrayBuffer = await slice.arrayBuffer();
-
-        // Construct payload: 36 bytes transferId header + chunk bytes
-        const combined = new Uint8Array(headerBytes.length + arrayBuffer.byteLength);
-        combined.set(headerBytes, 0);
-        combined.set(new Uint8Array(arrayBuffer), headerBytes.length);
-
-        activeChannels = 0;
-
-        // Check backpressure on all open data channels
-        for (const dc of openChannels) {
-          if (dc.readyState === 'open') {
-            activeChannels++;
-            if (dc.bufferedAmount > BUFFERED_AMOUNT_HIGH_WATERMARK) {
-              await new Promise((resolve) => {
-                const onLow = () => {
-                  dc.removeEventListener('bufferedamountlow', onLow);
-                  resolve();
-                };
-                dc.addEventListener('bufferedamountlow', onLow);
-                setTimeout(resolve, 50); // safety fallback timeout
-              });
-            }
-            try {
-              dc.send(combined.buffer);
-            } catch (err) {
-              console.warn('[webrtc] Error sending chunk:', err);
-              dc.close();
-            }
+    const recipients = Object.values(latest.current.participants).filter(p => p.participantId !== myParticipantId && p.status === 'connected').map(p => p.participantId);
+    update(transferId, { fileName: file.name, fileSize: file.size, status: 'SENDING', progress: 0, isSender: true });
+    const deadline = Date.now() + 5000;
+    while (recipients.length && !recipients.every(id => channels.current.get(id)?.readyState === 'open') && Date.now() < deadline) await delay(100);
+    if (recipients.length && recipients.every(id => channels.current.get(id)?.readyState === 'open')) {
+      const received = new Set();
+      receipts.current.set(transferId, received);
+      const targets = recipients.map(id => channels.current.get(id));
+      try {
+        for (const dc of targets) dc.send(JSON.stringify({ type: 'start', transferId, fileName: file.name, fileSize: file.size, fileType: file.type, caption }));
+        const header = new TextEncoder().encode(transferId);
+        for (let offset = 0; offset < file.size; offset += CHUNK) {
+          const bytes = new Uint8Array(await file.slice(offset, offset + CHUNK).arrayBuffer());
+          const frame = new Uint8Array(36 + bytes.length); frame.set(header); frame.set(bytes, 36);
+          for (const dc of targets) {
+            const drainDeadline = Date.now() + 15000;
+            while (dc.readyState === 'open' && dc.bufferedAmount > 256 * 1024 && Date.now() < drainDeadline) await delay(20);
+            if (dc.readyState !== 'open' || dc.bufferedAmount > 256 * 1024) throw new Error('Peer transfer stalled.');
+            dc.send(frame);
           }
+          update(transferId, { progress: Math.min(99, Math.floor((offset + bytes.length) / file.size * 100)) });
         }
-
-        const progress = Math.min(100, Math.round(((i + 1) / totalChunks) * 100));
-        if (progress > lastProgress || i === totalChunks - 1) {
-          lastProgress = progress;
-          setTransfers((prev) => {
-            const current = prev[transferId];
-            if (!current) return prev;
-            return {
-              ...prev,
-              [transferId]: {
-                ...current,
-                progress,
-                status: progress >= 100 ? 'SENT' : 'PROGRESS',
-              },
-            };
-          });
-        }
-      }
-
-      // Create local object URL for instant preview
-      const localUrl = URL.createObjectURL(file);
-      setTransfers((prev) => ({
-        ...prev,
-        [transferId]: {
-          ...prev[transferId],
-          progress: 100,
-          status: 'SENT',
-          blob: file,
-          url: localUrl,
-        },
-      }));
-
-      return { transferId, url: localUrl };
+        for (const dc of targets) dc.send(JSON.stringify({ type: 'end', transferId }));
+        const receiptDeadline = Date.now() + 15000;
+        while (received.size < recipients.length && Date.now() < receiptDeadline) await delay(100);
+        if (received.size !== recipients.length) throw new Error('Missing delivery receipts.');
+        const url = objectUrl(file);
+        update(transferId, { status: 'SENT', progress: 100, url });
+        return { transferId, url, p2p: true, delivered: recipients.length };
+      } catch {
+        for (const dc of targets) if (dc.readyState === 'open') dc.send(JSON.stringify({ type: 'cancel', transferId }));
+      } finally { receipts.current.delete(transferId); }
     }
-
-    // Fallback: REST upload if no direct P2P data channels are open
+    // A shared fallback URL covers every member when even one direct transfer fails.
     try {
-      setTransfers((prev) => ({
-        ...prev,
-        [transferId]: { ...prev[transferId], status: 'SENDING', progress: 20 },
-      }));
-
-      const formData = new FormData();
-      if (roomId) formData.append('roomId', roomId);
-      formData.append('file', file);
-
-      const res = await fetch(`${SERVER_URL}/api/upload`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!res.ok) {
-        throw new Error('Upload failed');
-      }
-
-      const data = await res.json();
-      const uploadedFile = data.file;
-
-      setTransfers((prev) => ({
-        ...prev,
-        [transferId]: {
-          ...prev[transferId],
-          progress: 100,
-          status: 'SENT',
-          url: `${SERVER_URL}${uploadedFile.url}`,
-        },
-      }));
-
-      return { transferId, url: `${SERVER_URL}${uploadedFile.url}`, fileData: uploadedFile };
-    } catch (err) {
-      setTransfers((prev) => ({
-        ...prev,
-        [transferId]: {
-          ...prev[transferId],
-          status: 'FAILED',
-          error: err.message || 'Transfer failed',
-        },
-      }));
-      throw err;
-    }
-  }, [roomId, waitForAnyChannelOpen]);
-
-  return {
-    transfers,
-    sendFile,
-  };
+      const body = new FormData(); body.append('file', file);
+      const response = await fetch(`${SERVER_URL}/api/upload`, { method: 'POST', headers: memberHeaders(roomId), body, signal: AbortSignal.timeout(120000) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Upload failed.');
+      update(transferId, { status: 'SENT', progress: 100, url: `${SERVER_URL}${data.file.url}` });
+      return { transferId, url: `${SERVER_URL}${data.file.url}`, fileData: data.file, p2p: false };
+    } catch (error) { update(transferId, { status: 'FAILED', error: error.message }); throw error; }
+  }, [roomId, myParticipantId, update]);
+  return { transfers, sendFile };
 }

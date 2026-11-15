@@ -17,7 +17,7 @@ function registerWhiteboardHandlers(io, socket) {
     // Server-side throttle
     const now = Date.now();
     const last = lastDrawMap.get(socket.id) ?? 0;
-    if (now - last < MIN_DRAW_INTERVAL_MS) return;
+    if (!payload?.done && now - last < MIN_DRAW_INTERVAL_MS) return;
     lastDrawMap.set(socket.id, now);
 
     const result = whiteboardDrawSchema.safeParse(payload);
@@ -28,8 +28,12 @@ function registerWhiteboardHandlers(io, socket) {
 
     const { strokeId, points, color, size, done } = result.data;
 
+    if (room.whiteboardState.length >= 2000 && !room.whiteboardState.some(s => s.strokeId === result.data.strokeId)) {
+      socket.emit('error', { code: 'BOARD_FULL', message: 'Whiteboard full. Clear it before drawing more.' });
+      return;
+    }
     // Relay to others for live progressive rendering
-    socket.to(roomId).emit('whiteboard:draw', { strokeId, points, color, size, done, participantId });
+    (done ? io.to(roomId) : socket.to(roomId)).emit('whiteboard:draw', { strokeId, points, color, size, done, participantId });
 
     // Only persist completed strokes to whiteboardState
     if (done) {

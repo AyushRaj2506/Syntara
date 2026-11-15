@@ -106,8 +106,9 @@ export function CreateRoomModal({ open, onClose }) {
       displayName: finalDisplayName,
     };
 
-    socket.emit('room:create', payload, (response) => {
+    socket.timeout(15000).emit('room:create', payload, (err, response) => {
       setLoading(false);
+      if (err) { setErrors({ general: 'Connection timed out. Please try again.' }); return; }
       if (response?.error) {
         setErrors({ general: response.error.message });
         return;
@@ -126,13 +127,13 @@ export function CreateRoomModal({ open, onClose }) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
-  }, [createdRoom?.roomCode]);
+  }, [createdRoom]);
 
   const handleEnter = useCallback(() => {
     if (!createdRoom?.roomCode) return;
     navigate(`/room/${createdRoom.roomCode}`);
     onClose();
-  }, [createdRoom?.roomCode, navigate, onClose]);
+  }, [createdRoom, navigate, onClose]);
 
   const handleClose = useCallback(() => {
     setStep('form');

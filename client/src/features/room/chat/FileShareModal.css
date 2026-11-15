@@ -360,3 +360,5 @@
 .file-icon--code { color: var(--color-accent); }
 .file-icon--generic { color: var(--color-text-secondary); }
 
+
+.modal-panel .file-modal { max-width: none; border: 0; border-radius: 0; box-shadow: none; animation: none; }

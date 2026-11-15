@@ -27,7 +27,7 @@ app.use(cors({
   },
   credentials: true,
 }));
-app.use(express.json());
+app.use(express.json({ limit: '512kb' }));
 
 
 const UPLOAD_DIR = path.join(__dirname, '..', 'uploads', 'temp');
@@ -35,105 +35,84 @@ if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 }
 
-// Multer storage
+// Authenticate before reading multipart input or creating directories.
+const { rateLimit } = require('./services/rateLimit');
+const uploadLimited = rateLimit(10, 60_000);
+const runLimited = rateLimit(20, 60_000);
+function requireMember(req, res, next) {
+  const code = req.get('X-Room-Code');
+  const token = req.get('Authorization')?.replace(/^Bearer /, '');
+  const room = code && roomStore.getByCode(code);
+  const participant = room && token && roomStore.findParticipantByToken(room.roomId, token);
+  if (!room || room.expiresAt <= Date.now() || !participant || participant.status !== 'connected') {
+    return res.status(401).json({ error: 'Join an active room before using this service.' });
+  }
+  req.room = room;
+  req.participant = participant;
+  next();
+}
+const MAX_FALLBACK_UPLOAD_BYTES = 250 * 1024 * 1024;
+const ROOM_QUOTA = 500 * 1024 * 1024;
+const TOTAL_QUOTA = 1024 * 1024 * 1024;
+let reservedBytes = 0;
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const roomId = req.body.roomId || 'global';
-    const dest = path.join(UPLOAD_DIR, roomId);
-    if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
-    cb(null, dest);
+    const dest = path.join(UPLOAD_DIR, req.room.roomId);
+    fs.mkdir(dest, { recursive: true }, (err) => cb(err, dest));
   },
-  filename: (req, file, cb) => {
-    const fileId = uuidv4();
-    const ext = path.extname(file.originalname);
-    cb(null, `${fileId}${ext}`);
-  },
+  filename: (req, file, cb) => cb(null, uuidv4()),
 });
-
-const MAX_FALLBACK_UPLOAD_BYTES = 250 * 1024 * 1024; // 250MB
-const upload = multer({
-  storage,
-  limits: { fileSize: MAX_FALLBACK_UPLOAD_BYTES },
-});
-
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-// Ephemeral file upload endpoint
-app.post('/api/upload', (req, res) => {
-  upload.single('file')(req, res, (err) => {
-    if (err instanceof multer.MulterError) {
-      if (err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(413).json({ error: 'File too large (max 250MB).' });
-      }
-      return res.status(400).json({ error: err.message });
-    } else if (err) {
-      return res.status(500).json({ error: 'Upload failed.' });
-    }
-
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
-    }
-
-  const { roomId } = req.body;
-  let resolvedRoomId = roomId || 'global';
-  if (roomId && roomId !== 'global') {
-    const room = roomStore.getById(roomId) || roomStore.getByCode(roomId);
-    if (!room) {
-      // Remove uploaded file if room doesn't exist
-      try { fs.unlinkSync(req.file.path); } catch {}
-      return res.status(404).json({ error: 'Room not found' });
-    }
-    resolvedRoomId = room.roomId;
+const upload = multer({ storage, limits: { fileSize: MAX_FALLBACK_UPLOAD_BYTES, files: 1, fields: 2, parts: 3 } });
+app.get('/health', (_req, res) => res.json({ status: 'ok', revision: process.env.RENDER_GIT_COMMIT || null, timestamp: new Date().toISOString() }));
+app.post('/api/upload', requireMember, (req, res) => {
+  const room = req.room;
+  if (uploadLimited(req.participant.token)) return res.status(429).json({ error: 'Too many uploads. Try again shortly.' });
+  const used = room.files.reduce((n, f) => n + f.fileSize, 0);
+  const total = roomStore.all().reduce((n, r) => n + r.files.reduce((m, f) => m + f.fileSize, 0), 0);
+  if (used + (room.uploadReserved || 0) + MAX_FALLBACK_UPLOAD_BYTES > ROOM_QUOTA || total + reservedBytes + MAX_FALLBACK_UPLOAD_BYTES > TOTAL_QUOTA) {
+    return res.status(413).json({ error: 'Temporary storage is full. Try a smaller file later.' });
   }
-
-  const fileData = {
-    fileId: path.parse(req.file.filename).name,
-    fileName: req.file.originalname,
-    fileSize: req.file.size,
-    fileType: req.file.mimetype,
-    url: `/api/files/${resolvedRoomId}/${req.file.filename}`,
+  reservedBytes += MAX_FALLBACK_UPLOAD_BYTES;
+  room.uploadReserved = (room.uploadReserved || 0) + MAX_FALLBACK_UPLOAD_BYTES;
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    reservedBytes -= MAX_FALLBACK_UPLOAD_BYTES;
+    room.uploadReserved -= MAX_FALLBACK_UPLOAD_BYTES;
   };
-
-  res.json({ file: fileData });
+  res.once('close', release);
+  upload.single('file')(req, res, (err) => {
+    release();
+    if (err) return res.status(err.code === 'LIMIT_FILE_SIZE' ? 413 : 400).json({ error: 'Upload failed (maximum 250 MB).' });
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
+    if (!roomStore.getById(room.roomId) || room.expiresAt <= Date.now() || room.participants[req.participant.participantId]?.token !== req.participant.token) {
+      fs.unlink(req.file.path, () => {});
+      return res.status(410).json({ error: 'Room has ended.' });
+    }
+    const file = { fileId: req.file.filename, fileName: req.file.originalname, fileSize: req.file.size,
+      fileType: req.file.mimetype, url: `/api/files/${room.roomId}/${req.file.filename}` };
+    room.files.push(file);
+    res.json({ file });
   });
 });
-
-// Serve uploaded file with streaming & download support
+// Random file IDs act as scoped download capabilities, valid only while the room lives.
 app.get('/api/files/:roomId/:filename', (req, res) => {
-  const { roomId, filename } = req.params;
-  const possiblePaths = [
-    path.join(UPLOAD_DIR, roomId, filename),
-    path.join(UPLOAD_DIR, filename),
-  ];
-  if (roomId && roomId !== 'global') {
-    const room = roomStore.getById(roomId) || roomStore.getByCode(roomId);
-    if (room) {
-      possiblePaths.push(path.join(UPLOAD_DIR, room.roomId, filename));
-      possiblePaths.push(path.join(UPLOAD_DIR, room.roomCode, filename));
-    }
-  }
-
-  const filePath = possiblePaths.find((p) => fs.existsSync(p));
-  if (!filePath) {
-    return res.status(404).json({ error: 'File not found or expired' });
-  }
-
-  // Security check: path traversal prevention
-  const resolved = path.resolve(filePath);
-  if (!resolved.startsWith(path.resolve(UPLOAD_DIR))) {
-    return res.status(403).json({ error: 'Access denied' });
-  }
-
-  res.sendFile(resolved);
+  const room = roomStore.getById(req.params.roomId);
+  const file = room?.files.find((f) => f.fileId === req.params.filename);
+  if (!room || room.expiresAt <= Date.now() || !file) return res.status(404).json({ error: 'File expired or not found.' });
+  res.set({ 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "sandbox; default-src 'none'" });
+  const safeMedia = /^(?:image\/(?:png|jpeg|gif|webp|avif)|audio\/(?:mpeg|ogg|wav|webm)|video\/(?:mp4|webm|ogg))$/;
+  res.type(safeMedia.test(file.fileType) ? file.fileType : 'application/octet-stream');
+  res.download(path.join(UPLOAD_DIR, room.roomId, file.fileId), file.fileName);
 });
 
 // Code execution: proxies to Wandbox sandboxed compiler & runtime (GCC 13.2.0 / C++20, CPython).
 // No local eval, exec, or host access — execution is strictly isolated in the cloud sandbox.
 const WANDBOX_API = 'https://wandbox.org/api/compile.json';
 
-app.post('/api/run', async (req, res) => {
+app.post('/api/run', requireMember, async (req, res) => {
+  if (runLimited(req.participant.token)) return res.status(429).json({ error: 'Too many runs. Try again shortly.' });
   const { code, language } = req.body ?? {};
 
   if (typeof code !== 'string' || code.trim().length === 0) {
@@ -174,15 +153,14 @@ app.post('/api/run', async (req, res) => {
       signal: controller.signal,
     });
 
-    clearTimeout(timeout);
-
     if (!wandboxRes.ok) {
       throw new Error(`Execution service returned status ${wandboxRes.status}`);
     }
 
     const result = await wandboxRes.json();
+    clearTimeout(timeout);
     const status = parseInt(result.status, 10);
-    const exitCode = isNaN(status) ? 0 : status;
+    const exitCode = isNaN(status) ? 1 : status;
 
     const stdout = result.program_output || '';
     const stderr = (result.compiler_error || result.compiler_message || '') + (result.program_error || '');

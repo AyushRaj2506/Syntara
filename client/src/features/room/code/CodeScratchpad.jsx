@@ -1,6 +1,8 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useSharedDocument } from '../../../hooks/useSharedDocument';
+import { SyncStatus } from '../../../components/SyncStatus';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import { Copy, Check, Trash2, Code2, Play, Loader2, ChevronDown, ChevronUp, Terminal } from 'lucide-react';
-import { socket, SERVER_URL } from '../../../lib/socket';
+import { memberHeaders, SERVER_URL } from '../../../lib/socket';
 import './CodeScratchpad.css';
 
 const DEFAULT_SNIPPETS = {
@@ -73,10 +75,10 @@ function runPython(code, timeoutMs = 15000) {
   return new Promise((resolve) => {
     const id = Math.random().toString(36).slice(2);
     const timer = setTimeout(() => {
-      pyodideWorkerCallbacks.delete(id);
       pyodideWorker?.terminate();
       pyodideWorker = null;
-      resolve({ error: 'Execution timed out after 15 seconds.' });
+      for (const cb of pyodideWorkerCallbacks.values()) cb.resolve({ error: 'Execution timed out; runtime restarted.' });
+      pyodideWorkerCallbacks.clear();
     }, timeoutMs);
 
     pyodideWorkerCallbacks.set(id, {
@@ -90,11 +92,11 @@ function runPython(code, timeoutMs = 15000) {
   });
 }
 
-async function runCpp(code) {
+async function runCpp(code, roomCode) {
   try {
     const res = await fetch(`${SERVER_URL}/api/run`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...memberHeaders(roomCode) },
       body: JSON.stringify({ code, language: 'cpp' }),
     });
     const data = await res.json();
@@ -104,7 +106,7 @@ async function runCpp(code) {
     return {
       error:
         'C++ execution requires a sandboxed compiler service that is currently unavailable.\n\n' +
-        'Python (Pyodide WebAssembly) works fully offline. Switch to Python to run code.',
+        'Python runs in your browser after its runtime downloads. Switch to Python to run code.',
     };
   }
 }
@@ -116,10 +118,9 @@ async function runCpp(code) {
  * }} props
  */
 export function CodeScratchpad({ initialCodeState, actions }) {
-  const [language, setLanguage] = useState(() => initialCodeState?.language || 'python');
-  const [code, setCode] = useState(
-    () => initialCodeState?.code || DEFAULT_SNIPPETS[initialCodeState?.language || 'python']
-  );
+  const initial = useMemo(() => initialCodeState || { code: '', language: 'python', revision: 0 }, [initialCodeState]);
+  const document = useSharedDocument('code', initial, actions.roomCode);
+  const { code, language } = document.value;
   const [copied, setCopied] = useState(false);
 
   // Run state
@@ -127,86 +128,19 @@ export function CodeScratchpad({ initialCodeState, actions }) {
   const [output, setOutput] = useState(null);
   const [outputOpen, setOutputOpen] = useState(false);
 
-  const isLocalUpdateRef = useRef(false);
-  const debounceRef = useRef(null);
   const textareaRef = useRef(null);
-
-  useEffect(() => {
-    if (initialCodeState?.code && initialCodeState.code !== code && !isLocalUpdateRef.current) {
-      setCode(initialCodeState.code);
-      if (initialCodeState.language) setLanguage(initialCodeState.language);
-    }
-  }, [initialCodeState]); // eslint-disable-line
-
-  // Socket listeners for remote code updates
-  useEffect(() => {
-    const handleRemoteUpdate = ({ code: remoteCode, language: remoteLang }) => {
-      if (isLocalUpdateRef.current) return;
-      if (remoteCode !== undefined) setCode(remoteCode);
-      if (remoteLang) setLanguage(remoteLang);
-    };
-
-    const handleRemoteClear = () => {
-      setCode('');
-    };
-
-    socket.on('code:update', handleRemoteUpdate);
-    socket.on('code:clear', handleRemoteClear);
-
-    return () => {
-      socket.off('code:update', handleRemoteUpdate);
-      socket.off('code:clear', handleRemoteClear);
-      clearTimeout(debounceRef.current);
-    };
-  }, []);
-
-  const handleCodeChange = (e) => {
-    const newCode = e.target.value;
-    isLocalUpdateRef.current = true;
-    setCode(newCode);
-
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      actions.updateCode?.(newCode, language);
-      isLocalUpdateRef.current = false;
-    }, 300);
-  };
-
+  const handleCodeChange = (e) => document.change({ code: e.target.value, language });
   const handleLanguageChange = (e) => {
-    const newLang = e.target.value;
-    setLanguage(newLang);
-    if (!code || code === DEFAULT_SNIPPETS[language]) {
-      const template = DEFAULT_SNIPPETS[newLang] || '';
-      setCode(template);
-      actions.updateCode?.(template, newLang);
-    } else {
-      actions.updateCode?.(code, newLang);
-    }
+    const nextLanguage = e.target.value;
+    document.change({ code: code || DEFAULT_SNIPPETS[nextLanguage], language: nextLanguage });
     setOutput(null);
   };
-
   const handleKeyDown = (e) => {
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      const start = e.target.selectionStart;
-      const end = e.target.selectionEnd;
-      const val = e.target.value;
-      const updated = val.substring(0, start) + '    ' + val.substring(end);
-      setCode(updated);
-      isLocalUpdateRef.current = true;
-
-      requestAnimationFrame(() => {
-        if (textareaRef.current) {
-          textareaRef.current.selectionStart = textareaRef.current.selectionEnd = start + 4;
-        }
-      });
-
-      clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => {
-        actions.updateCode?.(updated, language);
-        isLocalUpdateRef.current = false;
-      }, 300);
-    }
+    if (e.key !== 'Tab') return;
+    e.preventDefault();
+    const start = e.target.selectionStart;
+    document.change({ code: code.slice(0, start) + '    ' + code.slice(e.target.selectionEnd), language });
+    requestAnimationFrame(() => { if (textareaRef.current) textareaRef.current.selectionStart = textareaRef.current.selectionEnd = start + 4; });
   };
 
   const handleCopy = () => {
@@ -219,10 +153,9 @@ export function CodeScratchpad({ initialCodeState, actions }) {
   const [confirmingClear, setConfirmingClear] = useState(false);
 
   const handleClear = () => {
-    setCode('');
+    document.change({ code: '', language });
     setOutput(null);
     setConfirmingClear(false);
-    actions.clearCode?.();
   };
 
   const handleRun = useCallback(async () => {
@@ -241,12 +174,12 @@ export function CodeScratchpad({ initialCodeState, actions }) {
     if (language === 'python') {
       result = await runPython(trimmed);
     } else {
-      result = await runCpp(trimmed);
+      result = await runCpp(trimmed, actions.roomCode);
     }
 
     setOutput(result);
     setRunning(false);
-  }, [code, language]);
+  }, [code, language, actions.roomCode]);
 
   const lineCount = code.split('\n').length;
   const lineNumbers = Array.from({ length: lineCount }, (_, i) => i + 1);
@@ -256,6 +189,7 @@ export function CodeScratchpad({ initialCodeState, actions }) {
 
   return (
     <div className="code-scratchpad">
+      <SyncStatus document={document} />
       {/* Header bar */}
       <div className="code-scratchpad__toolbar">
         <div className="code-scratchpad__toolbar-left">

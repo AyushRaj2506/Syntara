@@ -6,18 +6,18 @@
 
 ## Key Features
 
-- **Instant Ephemeral Rooms**: Create or join study spaces with a 6-character room code (`STU-XXXX` / `CHT-XXXX`). No sign-up required.
+- **Instant Ephemeral Rooms**: Create or join study spaces with a subject-prefixed room code (for example `SYN-ABCDE`). No sign-up required.
 - **Dedicated Modes**:
   - **Chat Room Mode**: Streamlined two-column real-time messaging workspace with 12-hour local clock timestamps, smart message grouping, live presence indicators, and session statistics.
   - **Study Room Mode**: Three-column collaborative study hub with synchronized focus tools.
-- **Direct P2P File Sharing**: WebRTC DataChannel-powered zero-retention file transfer directly between peers, complete with drag & drop, file type detection, and inline image/document previews.
+- **Direct P2P File Sharing**: WebRTC DataChannel file transfer with delivery receipts and authenticated temporary server fallback, complete with drag & drop, file type detection, and inline image/document previews.
 - **Synchronized Study Tools**:
   - **Collaborative Whiteboard**: Real-time canvas with smooth pen, eraser, color palette, stroke sizing, and global clear/undo sync.
-  - **Live Study Notes**: Synchronized rich-text editor with markdown support, headings, lists, code blocks, and active editor presence.
-  - **Multi-Language Code Scratchpad**: Real-time syntax-highlighted code editor supporting JavaScript, Python, C++, Java, HTML, and CSS.
-  - **Focus Sprint Timer**: Synchronized Pomodoro timer with configurable sprints and break sessions.
+  - **Live Study Notes**: Synchronized rich-text editor with headings, lists, code blocks, editing presence, and revision conflict protection. Unsaved drafts stay in browser session storage until saved or discarded.
+  - **Multi-Language Code Scratchpad**: Shared Python and C++ editor with revision conflict protection. Python runs in a browser worker after downloading Pyodide; C++ uses the server-side Wandbox proxy.
+  - **Focus Sprint Timer**: Synchronized focus timer with configurable sprints, pause/resume, and explicit reset.
   - **Interactive Group Quizzes**: Create multiple-choice quizzes with live timers, synchronized question progression, and instant leaderboards.
-- **Syntara Design System**: Custom theme engine supporting dark and warm light modes with high-contrast UI, custom typography, and responsive zoom scaling (67%–125%).
+- **Syntara Design System**: Custom theme engine supporting dark and warm light modes with high-contrast UI, custom typography, and responsive zoom scaling (67%â€“125%).
 
 ---
 
@@ -47,20 +47,20 @@
 
 ```text
 +--------------------------------------------------------+
-¦                   Client (Browser)                     ¦
-¦  - React 19 UI + Theme System                          ¦
-¦  - useRoom (Socket state orchestrator)                 ¦
-¦  - useWebRTCFileTransfer (P2P DataChannel mesh)        ¦
+Â¦                   Client (Browser)                     Â¦
+Â¦  - React 19 UI + Theme System                          Â¦
+Â¦  - useRoom (Socket state orchestrator)                 Â¦
+Â¦  - useWebRTCFileTransfer (P2P DataChannel mesh)        Â¦
 +--------------------------------------------?-----------+
-             ¦                               ¦
+             Â¦                               Â¦
     WebSocket Signaling             P2P DataChannel (Mesh)
     & Room State Sync               Direct File Transfers
-             ¦                               ¦
+             Â¦                               Â¦
 +------------?-------------------------------------------+
-¦              Syntara Server (Node.js/Express)          ¦
-¦  - Socket.IO Real-time Gateways                        ¦
-¦  - In-Memory RoomStore & Session Lifecycle Manager     ¦
-¦  - Rate Limiting & Input Sanitization (Zod)            ¦
+Â¦              Syntara Server (Node.js/Express)          Â¦
+Â¦  - Socket.IO Real-time Gateways                        Â¦
+Â¦  - In-Memory RoomStore & Session Lifecycle Manager     Â¦
+Â¦  - Rate Limiting & Input Sanitization (Zod)            Â¦
 +--------------------------------------------------------+
 ```
 
@@ -71,38 +71,38 @@
 ```text
 Syntara/
 +-- client/                     # Vite + React Frontend
-¦   +-- src/
-¦   ¦   +-- components/         # Reusable UI primitives (Avatar, Button, Modal, etc.)
-¦   ¦   +-- features/
-¦   ¦   ¦   +-- landing/        # Marketing landing page components & previews
-¦   ¦   ¦   +-- room-entry/     # Room creation and joining modal dialogs
-¦   ¦   ¦   +-- room/           # Study & Chat room workspaces
-¦   ¦   ¦       +-- activity/   # Real-time room activity feed
-¦   ¦   ¦       +-- chat/       # Chat timeline, composer, & file-sharing modal
-¦   ¦   ¦       +-- code/       # Synchronized code scratchpad
-¦   ¦   ¦       +-- focus/      # Pomodoro focus sprint timer
-¦   ¦   ¦       +-- goals/      # Shared session goals checklist
-¦   ¦   ¦       +-- notes/      # Collaborative TipTap study notes
-¦   ¦   ¦       +-- participants/# Participant list, quick actions, & session stats
-¦   ¦   ¦       +-- quiz/       # Live interactive group quiz
-¦   ¦   ¦       +-- whiteboard/ # HTML5 canvas synchronized whiteboard
-¦   ¦   +-- hooks/              # Custom React hooks (useRoom, useWebRTCFileTransfer, etc.)
-¦   ¦   +-- lib/                # Socket.io client, formatters, and utilities
-¦   ¦   +-- pages/              # LandingPage, RoomPage, NotFoundPage
-¦   ¦   +-- styles/             # Global CSS tokens, resets, and variables
-¦   +-- .env.example
-¦   +-- index.html
-¦   +-- package.json
-¦   +-- vite.config.js
+Â¦   +-- src/
+Â¦   Â¦   +-- components/         # Reusable UI primitives (Avatar, Button, Modal, etc.)
+Â¦   Â¦   +-- features/
+Â¦   Â¦   Â¦   +-- landing/        # Marketing landing page components & previews
+Â¦   Â¦   Â¦   +-- room-entry/     # Room creation and joining modal dialogs
+Â¦   Â¦   Â¦   +-- room/           # Study & Chat room workspaces
+Â¦   Â¦   Â¦       +-- activity/   # Real-time room activity feed
+Â¦   Â¦   Â¦       +-- chat/       # Chat timeline, composer, & file-sharing modal
+Â¦   Â¦   Â¦       +-- code/       # Synchronized code scratchpad
+Â¦   Â¦   Â¦       +-- focus/      # Pomodoro focus sprint timer
+Â¦   Â¦   Â¦       +-- goals/      # Shared session goals checklist
+Â¦   Â¦   Â¦       +-- notes/      # Collaborative TipTap study notes
+Â¦   Â¦   Â¦       +-- participants/# Participant list, quick actions, & session stats
+Â¦   Â¦   Â¦       +-- quiz/       # Live interactive group quiz
+Â¦   Â¦   Â¦       +-- whiteboard/ # HTML5 canvas synchronized whiteboard
+Â¦   Â¦   +-- hooks/              # Custom React hooks (useRoom, useWebRTCFileTransfer, etc.)
+Â¦   Â¦   +-- lib/                # Socket.io client, formatters, and utilities
+Â¦   Â¦   +-- pages/              # LandingPage, RoomPage, NotFoundPage
+Â¦   Â¦   +-- styles/             # Global CSS tokens, resets, and variables
+Â¦   +-- .env.example
+Â¦   +-- index.html
+Â¦   +-- package.json
+Â¦   +-- vite.config.js
 +-- server/                     # Node.js + Express Backend
-¦   +-- src/
-¦   ¦   +-- rooms/              # Ephemeral RoomStore & cleanup routines
-¦   ¦   +-- services/           # Zod schema validation & room utilities
-¦   ¦   +-- socket/             # Socket.IO event handlers (chat, whiteboard, notes, etc.)
-¦   ¦   +-- app.js              # Express application setup & middleware
-¦   ¦   +-- server.js           # HTTP & Socket.IO server entry point
-¦   +-- .env.example
-¦   +-- package.json
+Â¦   +-- src/
+Â¦   Â¦   +-- rooms/              # Ephemeral RoomStore & cleanup routines
+Â¦   Â¦   +-- services/           # Zod schema validation & room utilities
+Â¦   Â¦   +-- socket/             # Socket.IO event handlers (chat, whiteboard, notes, etc.)
+Â¦   Â¦   +-- app.js              # Express application setup & middleware
+Â¦   Â¦   +-- server.js           # HTTP & Socket.IO server entry point
+Â¦   +-- .env.example
+Â¦   +-- package.json
 +-- .gitignore
 +-- README.md
 ```
@@ -112,7 +112,7 @@ Syntara/
 ## Getting Started
 
 ### Prerequisites
-- **Node.js**: v18.0.0 or higher
+- **Node.js**: v22.12.0 or higher
 - **npm**: v9.0.0 or higher
 
 ### 1. Clone the Repository
@@ -195,7 +195,7 @@ npm run dev
 3. **P2P File Transfer (WebRTC)**:
    - When a peer shares a file, the server coordinates WebRTC signaling (SDP offer/answer and ICE candidate exchange).
    - Once a secure `RTCDataChannel` is established, the file is sliced into binary chunks and sent directly peer-to-peer.
-   - Files are never stored on any central server, ensuring zero data retention.
+   - Direct transfers remain peer-to-peer. When a peer connection fails or no peers are available, files are uploaded to temporary server storage. Download links expire with the room; cleanup removes its upload directory. Unsaved notes/code drafts can remain in the current browser session until saved or discarded.
 
 ---
 
@@ -231,3 +231,7 @@ npm start
 ## License
 
 This project is licensed under the ISC License.
+
+## Verification and operational limits
+
+See [VERIFICATION.md](VERIFICATION.md) for regression commands, collaboration behavior, upload limits, privacy details, and deployment requirements. Deploy frontend and backend changes together.

@@ -70,5 +70,5 @@ export function RoomPage() {
     );
   }
 
-  return <RoomLayout />;
+  return <RoomLayout key={formattedCode} />;
 }

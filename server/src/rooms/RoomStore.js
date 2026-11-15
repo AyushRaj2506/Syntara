@@ -37,6 +37,8 @@ class RoomStore {
   delete(roomId) {
     const room = this.rooms.get(roomId);
     if (room) {
+      require('../socket/handlers/focus').clearFocusTimer(roomId);
+      require('../socket/handlers/quiz').clearQuizTimer(roomId);
       this.codeToId.delete(room.roomCode.toUpperCase());
       this.rooms.delete(roomId);
     }
@@ -119,7 +121,8 @@ class RoomStore {
       const { token: _t, ...pub } = p;
       publicParticipants[id] = pub;
     }
-    return { ...room, participants: publicParticipants };
+    const { uploadReserved, ...view } = room;
+    return { ...view, participants: publicParticipants, quizState: require('../services/quizView').publicQuiz(room.quizState) };
   }
 
   /** @param {string} roomId @returns {number} */

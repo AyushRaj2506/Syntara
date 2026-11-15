@@ -1,4 +1,5 @@
-import { useState, useRef } from 'react';
+import { Modal } from '../../../components/Modal';
+import { useState, useRef, useEffect } from 'react';
 import {
   UploadCloud,
   X,
@@ -50,6 +51,11 @@ export function FileShareModal({ isOpen, onClose, onSendFiles, initialFiles = []
   const [stagedFiles, setStagedFiles] = useState(initialFiles);
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef(null);
+  const previewsRef = useRef(new Set(initialFiles.map(f => f.previewUrl).filter(Boolean)));
+  useEffect(() => {
+    const previews = previewsRef.current;
+    return () => { for (const url of previews) URL.revokeObjectURL(url); };
+  }, []);
 
   if (!isOpen) return null;
 
@@ -63,6 +69,7 @@ export function FileShareModal({ isOpen, onClose, onSendFiles, initialFiles = []
       type: file.type,
       previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
     }));
+    for (const file of newFiles) if (file.previewUrl) previewsRef.current.add(file.previewUrl);
     setStagedFiles((prev) => [...prev, ...newFiles]);
   };
 
@@ -91,21 +98,8 @@ export function FileShareModal({ isOpen, onClose, onSendFiles, initialFiles = []
   const hasLargeFile = stagedFiles.some((f) => f.size > 100 * 1024 * 1024);
 
   return (
-    <div className="file-modal-backdrop" onClick={onClose} role="dialog" aria-modal="true" aria-label="Share Files">
+    <Modal open={isOpen} onClose={onClose} title="Share Files">
       <div className="file-modal" onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
-        <div className="file-modal__header">
-          <div className="file-modal__header-left">
-            <div className="file-modal__header-icon">
-              <UploadCloud size={18} className="text-accent" />
-            </div>
-            <h3 className="file-modal__title text-heading-sm font-semibold">Share Files</h3>
-          </div>
-          <button type="button" className="file-modal__close-btn" onClick={onClose} aria-label="Close dialog">
-            <X size={16} />
-          </button>
-        </div>
-
         {/* Body */}
         <div className="file-modal__body">
           {/* Dropzone */}
@@ -215,6 +209,6 @@ export function FileShareModal({ isOpen, onClose, onSendFiles, initialFiles = []
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

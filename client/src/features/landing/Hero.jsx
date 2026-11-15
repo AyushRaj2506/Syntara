@@ -65,7 +65,7 @@ export function Hero({ onCreateRoom }) {
           <div className="hero__trust-dot" />
           <div className="hero__trust-item">
             <Shield size={14} className="hero__trust-icon" />
-            <span className="text-caption">Zero-Retention Privacy</span>
+            <span className="text-caption">Temporary Private Rooms</span>
           </div>
           <div className="hero__trust-dot" />
           <div className="hero__trust-item">

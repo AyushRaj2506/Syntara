@@ -49,6 +49,7 @@ function registerFocusHandlers(io, socket) {
     const handle = setTimeout(() => {
       completeFocusSession(io, roomId);
     }, durationMin * 60 * 1000);
+    handle.unref?.();
     focusTimers.set(roomId, handle);
   });
 
@@ -60,9 +61,9 @@ function registerFocusHandlers(io, socket) {
     if (!room.focusSession || room.focusSession.status !== 'FOCUSING') return;
 
     // Store remaining time
-    const remaining = room.focusSession.endsAt - Date.now();
+    const remaining = Math.max(0, room.focusSession.endsAt - Date.now());
     room.focusSession.endsAt = undefined;
-    room.focusSession.status = 'READY'; // treated as paused/ready
+    room.focusSession.status = 'PAUSED';
     room.focusSession._pausedRemaining = remaining;
 
     const handle = focusTimers.get(roomId);
@@ -76,7 +77,7 @@ function registerFocusHandlers(io, socket) {
     if (!roomId || !participantId) return;
     const room = roomStore.getById(roomId);
     if (!room || room.hostId !== participantId) return;
-    if (!room.focusSession) return;
+    if (room.focusSession?.status !== 'PAUSED') return;
 
     const remaining = room.focusSession._pausedRemaining ?? room.focusSession.durationMin * 60 * 1000;
     const endsAt = Date.now() + remaining;
@@ -87,6 +88,7 @@ function registerFocusHandlers(io, socket) {
     io.to(roomId).emit('focus:resume', { focusSession: room.focusSession });
 
     const handle = setTimeout(() => completeFocusSession(io, roomId), remaining);
+    handle.unref?.();
     focusTimers.set(roomId, handle);
   });
 
@@ -99,7 +101,10 @@ function registerFocusHandlers(io, socket) {
     const handle = focusTimers.get(roomId);
     if (handle) { clearTimeout(handle); focusTimers.delete(roomId); }
 
-    completeFocusSession(io, roomId);
+    if (room.focusSession?.status === 'COMPLETED') {
+      room.focusSession = null;
+      io.to(roomId).emit('focus:end', { focusSession: null });
+    } else completeFocusSession(io, roomId);
   });
 }
 
@@ -118,13 +123,11 @@ function completeFocusSession(io, roomId) {
 
   io.to(roomId).emit('focus:end', { focusSession: room.focusSession });
 
-  // Auto-reset to null after 8s so next session can start
-  setTimeout(() => {
-    const r = roomStore.getById(roomId);
-    if (r && r.focusSession?.status === 'COMPLETED') {
-      r.focusSession = null;
-    }
-  }, 8000);
+
 }
 
-module.exports = { registerFocusHandlers };
+function clearFocusTimer(roomId) {
+  clearTimeout(focusTimers.get(roomId));
+  focusTimers.delete(roomId);
+}
+module.exports = { registerFocusHandlers, clearFocusTimer };

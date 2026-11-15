@@ -37,7 +37,7 @@ export function FocusTimer({ focusSession, isHost, actions, fullScreen = false }
     update();
     const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
-  }, [status, focusSession?.endsAt]);
+  }, [status, focusSession?.endsAt, focusSession?._pausedRemaining]);
 
   const handleStart = () => {
     actions.startFocus(selectedDuration);
@@ -121,7 +121,7 @@ export function FocusTimer({ focusSession, isHost, actions, fullScreen = false }
 
           <div className="focus-card__timer-display">
             <div className="focus-timer__digits text-display-lg font-mono font-bold" aria-live="polite">
-              {formatCountdown(secondsLeft)}
+              {formatCountdown(status === 'PAUSED' ? Math.ceil((focusSession?._pausedRemaining || 0) / 1000) : secondsLeft)}
             </div>
             <span className="focus-timer__subtitle text-caption text-secondary">
               {status === 'PAUSED' ? 'Session paused' : 'Deep work in progress'}
@@ -183,7 +183,7 @@ export function FocusTimer({ focusSession, isHost, actions, fullScreen = false }
           </div>
 
           <div className="focus-timer__digits text-display-lg text-success font-mono font-bold">
-            {formatCountdown(secondsLeft)}
+            {formatCountdown(status === 'PAUSED' ? Math.ceil((focusSession?._pausedRemaining || 0) / 1000) : secondsLeft)}
           </div>
           <span className="focus-timer__subtitle text-caption text-secondary">Recharge for the next round</span>
 

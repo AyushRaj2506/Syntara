@@ -1,3 +1,4 @@
+const { publicQuiz } = require('../../services/quizView');
 const { roomStore } = require('../../rooms/RoomStore');
 const { quizStartSchema, quizSubmitSchema } = require('../../services/validation');
 
@@ -21,10 +22,12 @@ function registerQuizHandlers(io, socket) {
       return;
     }
 
+    if (room.quizState?.status === 'IN_PROGRESS') return;
     const result = quizStartSchema.safeParse(payload);
     if (!result.success) return;
 
     room.quizState = {
+      quizId: require('crypto').randomUUID(),
       questions: result.data.questions,
       currentIndex: 0,
       status: 'IN_PROGRESS',
@@ -33,7 +36,7 @@ function registerQuizHandlers(io, socket) {
       questionEndsAt: Date.now() + result.data.questions[0].timerSec * 1000,
     };
 
-    io.to(roomId).emit('quiz:start', { quizState: room.quizState });
+    io.to(roomId).emit('quiz:start', { quizState: publicQuiz(room.quizState) });
     scheduleQuestionEnd(io, roomId, result.data.questions[0].timerSec);
   });
 
@@ -47,6 +50,7 @@ function registerQuizHandlers(io, socket) {
     const room = roomStore.getById(roomId);
     if (!room || !room.quizState || room.quizState.status !== 'IN_PROGRESS') return;
 
+    if (room.quizState._results) return;
     const { questionIndex, optionIndex } = result.data;
 
     // Reject late submissions (question already moved on)
@@ -91,6 +95,7 @@ function scheduleQuestionEnd(io, roomId, timerSec) {
     questionTimers.delete(roomId);
     revealAndAdvance(io, roomId);
   }, timerSec * 1000);
+  handle.unref?.();
   questionTimers.set(roomId, handle);
 }
 
@@ -101,7 +106,7 @@ function scheduleQuestionEnd(io, roomId, timerSec) {
  */
 function revealAndAdvance(io, roomId) {
   const room = roomStore.getById(roomId);
-  if (!room || !room.quizState) return;
+  if (!room || !room.quizState || room.quizState._results) return;
 
   const { currentIndex, questions, answers } = room.quizState;
   const question = questions[currentIndex];
@@ -126,7 +131,11 @@ function revealAndAdvance(io, roomId) {
     }))
     .sort((a, b) => b.score - a.score);
 
+  room.quizState._results = { questionIndex: currentIndex, correctIndex: question.correctIndex, tally };
+  room.quizState._leaderboard = isLast ? leaderboard : null;
+  if (isLast) room.quizState.status = 'COMPLETED';
   io.to(roomId).emit('quiz:results', {
+    status: room.quizState.status,
     questionIndex: currentIndex,
     correctIndex: question.correctIndex,
     tally,
@@ -139,17 +148,21 @@ function revealAndAdvance(io, roomId) {
   }
 
   // Advance after 3s reveal
-  setTimeout(() => {
+  const quizId = room.quizState.quizId;
+  const advanceTimer = setTimeout(() => {
     const r = roomStore.getById(roomId);
-    if (!r || !r.quizState || r.quizState.status !== 'IN_PROGRESS') return;
+    if (!r || r.quizState?.quizId !== quizId || r.quizState.status !== 'IN_PROGRESS') return;
 
+    delete r.quizState._results;
     r.quizState.currentIndex++;
     const nextQ = r.quizState.questions[r.quizState.currentIndex];
     r.quizState.questionEndsAt = Date.now() + nextQ.timerSec * 1000;
 
-    io.to(roomId).emit('quiz:next', { quizState: r.quizState });
+    io.to(roomId).emit('quiz:next', { quizState: publicQuiz(r.quizState) });
     scheduleQuestionEnd(io, roomId, nextQ.timerSec);
   }, 3000);
+  advanceTimer.unref?.();
+  questionTimers.set(roomId, advanceTimer);
 }
 
 /**
@@ -172,4 +185,8 @@ function computeScores(questions, answers) {
   return scores;
 }
 
-module.exports = { registerQuizHandlers };
+function clearQuizTimer(roomId) {
+  clearTimeout(questionTimers.get(roomId));
+  questionTimers.delete(roomId);
+}
+module.exports = { registerQuizHandlers, clearQuizTimer };

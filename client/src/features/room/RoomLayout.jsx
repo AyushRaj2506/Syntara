@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
-import { X, FileText, Palette, Code2, MessageSquare, Flame, CheckSquare, Users, Clock } from 'lucide-react';
+import { X, FileText, Palette, Code2, MessageSquare, Flame, CheckSquare, Users, HelpCircle } from 'lucide-react';
 import { useRoom } from '../../hooks/useRoom';
 import { RoomTopBar } from './RoomTopBar';
 import { ParticipantList } from './participants/ParticipantList';
@@ -14,7 +14,6 @@ import { LiveActivity } from './activity/LiveActivity';
 import { Quiz } from './quiz/Quiz';
 import { useToast } from '../../components/Toast';
 import { useConnectionState } from '../../hooks/useConnectionState';
-import { formatExpiry } from '../../lib/formatters';
 import './RoomLayout.css';
 
 /**
@@ -91,7 +90,7 @@ export function RoomLayout() {
   // Unread chat counter
   useEffect(() => {
     if (mobileTab !== 'chat') {
-      setUnreadCount(chatMessages.length - lastReadCount);
+      setUnreadCount(Math.max(0, chatMessages.length - lastReadCount));
     }
   }, [chatMessages.length, mobileTab, lastReadCount]);
 
@@ -164,365 +163,70 @@ export function RoomLayout() {
   const quizActive = quizState && quizState.status === 'IN_PROGRESS';
   const effectiveCenterTab = quizActive ? 'quiz' : centerTab;
 
+  const activeTab = quizActive ? 'quiz' : mobileTab;
+  const tools = [
+    { id: 'notes', label: 'Notes', icon: FileText },
+    { id: 'whiteboard', label: 'Board', icon: Palette },
+    { id: 'code', label: 'Code', icon: Code2 },
+    { id: 'quiz', label: 'Quiz', icon: HelpCircle },
+  ];
+  const tabs = isChatMode
+    ? [{ id: 'chat', label: 'Chat', icon: MessageSquare }, { id: 'members', label: 'People', icon: Users }]
+    : [...tools, { id: 'chat', label: 'Chat', icon: MessageSquare }, { id: 'focus', label: 'Focus', icon: Flame }, { id: 'goals', label: 'Goals', icon: CheckSquare }];
   return (
-    <div
-      className={`room-layout ${
-        focusSession?.status === 'FOCUSING' && !isChatMode ? 'room-layout--focusing' : ''
-      } ${isChatMode ? 'room-layout--chat-room' : ''}`}
-    >
-      <RoomTopBar
-        room={room}
-        me={me}
-        connectionStatus={connectionStatus}
-        onOpenDrawer={() => setDrawerOpen(true)}
-        onLeave={() => {
-          actions.leaveRoom();
-          navigate('/');
-        }}
-      />
-
-      {/* ============================================================
-          CHAT ROOM EXPERIENCE (2-Column Dedicated Chat Layout)
-          ============================================================ */}
-      {isChatMode ? (
-        <div className="room-layout__body room-layout__body--chat-only">
-          {/* Left sidebar: Collaboration Panel */}
-          <aside className="room-layout__left room-layout__left--chat-mode room-layout__sidebar-panel">
-            <ParticipantList
-              participants={participants}
-              hostId={room.hostId}
-              meId={me?.participantId}
-              isChatRoom={true}
-              roomCode={room.roomCode}
-              expiresAt={room.expiresAt}
+    <div className={`room-layout ${isChatMode ? 'room-layout--chat-room' : ''} ${drawerOpen ? 'room-layout--drawer' : ''}`} data-mobile-tab={activeTab}>
+      <RoomTopBar room={room} me={me} connectionStatus={connectionStatus}
+        onOpenDrawer={() => { setMobileTab('members'); setDrawerOpen(v => !v); }}
+        onLeave={() => { actions.leaveRoom(); navigate('/'); }} />
+      <div className={`room-layout__body ${isChatMode ? 'room-layout__body--chat-only' : ''}`}>
+        <aside className="room-layout__left" aria-label="Room tools">
+          <button className="room-panel-close" onClick={() => setDrawerOpen(false)} aria-label="Close room tools"><X size={18} /></button>
+          <div className="room-section room-section--members">
+            <ParticipantList participants={participants} hostId={room.hostId} meId={me?.participantId}
+              isChatRoom={isChatMode} roomCode={room.roomCode} expiresAt={room.expiresAt}
               messageCount={chatMessages.filter(m => m.type === 'user').length}
-              fileCount={chatMessages.filter(m => m.type === 'user' && m.file).length}
-              onRemove={isHost ? actions.removeParticipant : undefined}
-            />
-            <LiveActivity isChatRoom={true} />
-          </aside>
-
-          {/* Main workspace: Full-width Chat */}
-          <main className="room-layout__center room-layout__center--chat-mode" role="main">
-            <Chat
-              messages={chatMessages}
-              meId={me?.participantId}
-              participants={room.participants}
-              actions={actions}
-              onFocus={markChatRead}
-              roomId={room.roomCode}
-              roomName={room.name}
-              isChatRoom={true}
-            />
-          </main>
-        </div>
-      ) : (
-        /* ============================================================
-           STUDY ROOM EXPERIENCE (3 Columns)
-           ============================================================ */
-        <div className="room-layout__body">
-          {/* Left column: People, Focus, Goals, Activity */}
-          <aside className="room-layout__left">
-            <ParticipantList
-              participants={participants}
-              hostId={room.hostId}
-              meId={me?.participantId}
-              isChatRoom={false}
-              roomCode={room.roomCode}
-              onRemove={isHost ? actions.removeParticipant : undefined}
-            />
-            <FocusTimer focusSession={focusSession} isHost={isHost} actions={actions} />
-            <GoalList goals={goals} meId={me?.participantId} hostId={room.hostId} actions={actions} />
-            <LiveActivity isChatRoom={false} />
-          </aside>
-
-          {/* Center Column: Primary Workspace */}
-          <main className="room-layout__center" role="main">
-            {!quizActive && (
-              <div className="room-layout__tabs-bar">
-                <div className="room-layout__tabs" role="tablist" aria-label="Workspace tool switcher">
-                  {[
-                    { id: 'notes', label: 'Notes', icon: FileText },
-                    { id: 'whiteboard', label: 'Whiteboard', icon: Palette },
-                    { id: 'code', label: 'Code', icon: Code2 },
-                  ].map(({ id, label, icon: Icon }) => (
-                    <button
-                      key={id}
-                      type="button"
-                      role="tab"
-                      aria-selected={centerTab === id}
-                      className={`room-layout__tab ${centerTab === id ? 'room-layout__tab--active' : ''}`}
-                      onClick={() => setCenterTab(id)}
-                    >
-                      <Icon size={14} className="room-layout__tab-icon" />
-                      <span>{label}</span>
-                    </button>
-                  ))}
-                </div>
-
-                {quizState?.status === 'COMPLETED' && (
-                  <span className="room-layout__quiz-badge text-label">Quiz complete</span>
-                )}
-              </div>
-            )}
-
-            <div className="room-layout__workspace">
-              <div
-                className={`room-workspace-pane ${effectiveCenterTab === 'notes' ? 'room-workspace-pane--active' : ''}`}
-                aria-hidden={effectiveCenterTab !== 'notes'}
-              >
-                <StudyNotes initialContent={room.sharedNotes} actions={actions} />
-              </div>
-              <div
-                className={`room-workspace-pane ${effectiveCenterTab === 'whiteboard' ? 'room-workspace-pane--active' : ''}`}
-                aria-hidden={effectiveCenterTab !== 'whiteboard'}
-              >
-                <Whiteboard
-                  initialStrokes={room.whiteboardState}
-                  participantId={me?.participantId}
-                  actions={actions}
-                />
-              </div>
-              <div
-                className={`room-workspace-pane ${effectiveCenterTab === 'code' ? 'room-workspace-pane--active' : ''}`}
-                aria-hidden={effectiveCenterTab !== 'code'}
-              >
-                <CodeScratchpad initialCodeState={room.codeState} actions={actions} />
-              </div>
-              {quizState && (
-                <div
-                  className={`room-workspace-pane ${effectiveCenterTab === 'quiz' ? 'room-workspace-pane--active' : ''}`}
-                  aria-hidden={effectiveCenterTab !== 'quiz'}
-                >
-                  <Quiz
-                    quizState={quizState}
-                    meId={me?.participantId}
-                    isHost={isHost}
-                    actions={actions}
-                    participants={participants}
-                  />
-                </div>
-              )}
-            </div>
-          </main>
-
-          {/* Right column: Chat & P2P File Sharing */}
-          <aside
-            className={`room-layout__right ${focusSession?.status === 'FOCUSING' ? 'room-layout__right--dimmed' : ''}`}
-          >
-            <Chat
-              messages={chatMessages}
-              meId={me?.participantId}
-              participants={room.participants}
-              actions={actions}
-              onFocus={markChatRead}
-              roomId={room.roomCode}
-            />
-          </aside>
-        </div>
-      )}
-
-      {/* Tablet drawer */}
-      {drawerOpen && (
-        <div className="tablet-drawer-backdrop" onClick={() => setDrawerOpen(false)}>
-          <div className="tablet-drawer" onClick={(e) => e.stopPropagation()}>
-            <button
-              type="button"
-              className="tablet-drawer__close"
-              onClick={() => setDrawerOpen(false)}
-              aria-label="Close panel"
-            >
-              <X size={18} />
-            </button>
-            <ParticipantList
-              participants={participants}
-              hostId={room.hostId}
-              meId={me?.participantId}
-              isChatRoom={isChatMode}
-              roomCode={room.roomCode}
-              onRemove={isHost ? actions.removeParticipant : undefined}
-            />
-            {isChatMode ? (
-              <>
-                <div className="chat-room-info-card">
-                  <div className="chat-room-info-card__header">
-                    <span className="text-label text-tertiary">Room Info</span>
-                    <span className="chat-room-info-card__badge text-caption">
-                      <Clock size={11} /> {formatExpiry(room.expiresAt)}
-                    </span>
-                  </div>
-                  <p className="text-body-sm font-semibold text-primary mt-1">
-                    Temporary collaboration room
-                  </p>
-                  <p className="text-caption text-tertiary mt-1">
-                    Messages and shared files expire when the room ends.
-                  </p>
-                </div>
-                <LiveActivity isChatRoom={true} />
-              </>
-            ) : (
-              <>
-                <FocusTimer focusSession={focusSession} isHost={isHost} actions={actions} />
-                <GoalList goals={goals} meId={me?.participantId} hostId={room.hostId} actions={actions} />
-                <LiveActivity isChatRoom={false} />
-              </>
-            )}
+              fileCount={chatMessages.filter(m => m.file).length}
+              onRemove={isHost ? actions.removeParticipant : undefined} />
           </div>
-        </div>
-      )}
-
-      {/* Mobile bottom tab bar */}
-      <nav className="mobile-tab-bar" aria-label="Room navigation">
-        {isChatMode
-          ? [
-              { id: 'chat', label: 'Chat', icon: MessageSquare, badge: unreadCount },
-              { id: 'members', label: 'Members', icon: Users },
-            ].map(({ id, label, icon: Icon, badge }) => (
-              <button
-                key={id}
-                type="button"
-                className={`mobile-tab-bar__btn ${mobileTab === id ? 'mobile-tab-bar__btn--active' : ''}`}
-                onClick={() => {
-                  setMobileTab(id);
-                  if (id === 'chat') markChatRead();
-                }}
-                aria-label={label}
-                aria-current={mobileTab === id ? 'page' : undefined}
-              >
-                <Icon size={16} />
-                <span className="mobile-tab-bar__label text-caption">{label}</span>
-                {badge > 0 && (
-                  <span className="mobile-tab-bar__badge text-caption">{badge > 9 ? '9+' : badge}</span>
-                )}
-              </button>
-            ))
-          : [
-              { id: 'notes', label: 'Notes', icon: FileText },
-              { id: 'whiteboard', label: 'Board', icon: Palette },
-              { id: 'code', label: 'Code', icon: Code2 },
-              { id: 'chat', label: 'Chat', icon: MessageSquare, badge: unreadCount },
-              { id: 'focus', label: 'Focus', icon: Flame },
-              { id: 'goals', label: 'Goals', icon: CheckSquare },
-            ].map(({ id, label, icon: Icon, badge }) => (
-              <button
-                key={id}
-                type="button"
-                className={`mobile-tab-bar__btn ${mobileTab === id ? 'mobile-tab-bar__btn--active' : ''}`}
-                onClick={() => {
-                  setMobileTab(id);
-                  if (id === 'chat') markChatRead();
-                }}
-                aria-label={label}
-                aria-current={mobileTab === id ? 'page' : undefined}
-              >
-                <Icon size={16} />
-                <span className="mobile-tab-bar__label text-caption">{label}</span>
-                {badge > 0 && (
-                  <span className="mobile-tab-bar__badge text-caption">{badge > 9 ? '9+' : badge}</span>
-                )}
-              </button>
-            ))}
-      </nav>
-
-      {/* Mobile content — persistent panes */}
-      <div className="mobile-content">
-        {isChatMode ? (
-          <>
-            <div
-              className={`mobile-pane ${mobileTab === 'chat' ? 'mobile-pane--active' : ''}`}
-              aria-hidden={mobileTab !== 'chat'}
-            >
-              <Chat
-                messages={chatMessages}
-                meId={me?.participantId}
-                participants={room.participants}
-                actions={actions}
-                onFocus={markChatRead}
-                roomId={room.roomCode}
-                isChatRoom={true}
-              />
+          {!isChatMode && <>
+            <div className="room-section room-section--focus"><FocusTimer focusSession={focusSession} isHost={isHost} actions={actions} /></div>
+            <div className="room-section room-section--goals"><GoalList goals={goals} meId={me?.participantId} hostId={room.hostId} actions={actions} /></div>
+          </>}
+          <div className="room-section room-section--activity"><LiveActivity isChatRoom={isChatMode} /></div>
+        </aside>
+        {!isChatMode && <main className="room-layout__center">
+          <div className="room-layout__tabs-bar">
+            <div className="room-layout__tabs" role="tablist" aria-label="Workspace tools">
+              {tools.map(({ id, label, icon: Icon }) => <button key={id} role="tab" aria-selected={effectiveCenterTab === id}
+                className={`room-layout__tab ${effectiveCenterTab === id ? 'room-layout__tab--active' : ''}`}
+                disabled={quizActive && id !== 'quiz'}
+                onClick={() => { setCenterTab(id); setMobileTab(id); }}><Icon size={15} />{label}</button>)}
             </div>
-            <div
-              className={`mobile-pane ${mobileTab === 'members' ? 'mobile-pane--active' : ''}`}
-              aria-hidden={mobileTab !== 'members'}
-              style={{ overflowY: 'auto', padding: 'var(--space-3)' }}
-            >
-              <ParticipantList
-                participants={participants}
-                hostId={room.hostId}
-                meId={me?.participantId}
-                isChatRoom={true}
-                roomCode={room.roomCode}
-                onRemove={isHost ? actions.removeParticipant : undefined}
-              />
-              <div className="chat-room-info-card mt-3">
-                <div className="chat-room-info-card__header">
-                  <span className="text-label text-tertiary">Room Info</span>
-                  <span className="chat-room-info-card__badge text-caption">
-                    <Clock size={11} /> {formatExpiry(room.expiresAt)}
-                  </span>
-                </div>
-                <p className="text-body-sm font-semibold text-primary mt-1">
-                  Temporary collaboration room
-                </p>
-                <p className="text-caption text-tertiary mt-1">
-                  Messages and shared files expire when the room ends.
-                </p>
-              </div>
-            </div>
-          </>
-        ) : (
-          <>
-            <div
-              className={`mobile-pane ${mobileTab === 'notes' ? 'mobile-pane--active' : ''}`}
-              aria-hidden={mobileTab !== 'notes'}
-            >
-              <StudyNotes initialContent={room.sharedNotes} actions={actions} />
-            </div>
-            <div
-              className={`mobile-pane ${mobileTab === 'whiteboard' ? 'mobile-pane--active' : ''}`}
-              aria-hidden={mobileTab !== 'whiteboard'}
-            >
-              <Whiteboard
-                initialStrokes={room.whiteboardState}
-                participantId={me?.participantId}
-                actions={actions}
-              />
-            </div>
-            <div
-              className={`mobile-pane ${mobileTab === 'code' ? 'mobile-pane--active' : ''}`}
-              aria-hidden={mobileTab !== 'code'}
-            >
-              <CodeScratchpad initialCodeState={room.codeState} actions={actions} />
-            </div>
-            <div
-              className={`mobile-pane ${mobileTab === 'chat' ? 'mobile-pane--active' : ''}`}
-              aria-hidden={mobileTab !== 'chat'}
-            >
-              <Chat
-                messages={chatMessages}
-                meId={me?.participantId}
-                participants={room.participants}
-                actions={actions}
-                onFocus={markChatRead}
-                roomId={room.roomCode}
-              />
-            </div>
-            <div
-              className={`mobile-pane ${mobileTab === 'focus' ? 'mobile-pane--active' : ''}`}
-              aria-hidden={mobileTab !== 'focus'}
-            >
-              <FocusTimer focusSession={focusSession} isHost={isHost} actions={actions} fullScreen />
-            </div>
-            <div
-              className={`mobile-pane ${mobileTab === 'goals' ? 'mobile-pane--active' : ''}`}
-              aria-hidden={mobileTab !== 'goals'}
-            >
-              <GoalList goals={goals} meId={me?.participantId} hostId={room.hostId} actions={actions} />
-            </div>
-          </>
-        )}
+          </div>
+          <div className="room-layout__workspace">
+            {tools.map(({ id }) => <div key={id} data-tool={id}
+              className={`room-workspace-pane ${effectiveCenterTab === id ? 'room-workspace-pane--active' : ''}`}>
+              {id === 'notes' && <StudyNotes initialContent={room.sharedNotes} initialRevision={room.notesRevision || 0} actions={actions} />}
+              {id === 'whiteboard' && <Whiteboard initialStrokes={room.whiteboardState} participantId={me?.participantId} actions={actions} />}
+              {id === 'code' && <CodeScratchpad initialCodeState={room.codeState} actions={actions} />}
+              {id === 'quiz' && <Quiz quizState={quizState} meId={me?.participantId} isHost={isHost} actions={actions} participants={participants} />}
+            </div>)}
+          </div>
+        </main>}
+        <aside className={isChatMode ? 'room-layout__center room-layout__center--chat-mode room-chat-panel' : 'room-layout__right room-chat-panel'} aria-label="Room chat">
+          <Chat messages={chatMessages} meId={me?.participantId} participants={room.participants} actions={actions}
+            onFocus={markChatRead} roomId={room.roomCode} roomName={room.name} isChatRoom={isChatMode} />
+        </aside>
       </div>
+      <nav className="mobile-tab-bar" aria-label="Room navigation">
+        {tabs.map(({ id, label, icon: Icon }) => <button key={id}
+          className={`mobile-tab-bar__btn ${activeTab === id ? 'mobile-tab-bar__btn--active' : ''}`}
+          aria-current={activeTab === id ? 'page' : undefined}
+          onClick={() => { setMobileTab(id); if (tools.some(t => t.id === id)) setCenterTab(id); if (id === 'chat') markChatRead(); }}>
+          <Icon size={18} /><span className="mobile-tab-bar__label">{label}</span>
+          {id === 'chat' && unreadCount > 0 && <span className="mobile-tab-bar__badge">{Math.min(99, unreadCount)}</span>}
+        </button>)}
+      </nav>
     </div>
   );
 }

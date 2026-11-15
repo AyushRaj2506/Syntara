@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, lazy } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Navbar } from '../features/landing/Navbar';
 import { Hero } from '../features/landing/Hero';
@@ -7,7 +7,7 @@ import { FeatureGrid } from '../features/landing/FeatureGrid';
 import { HowItWorks } from '../features/landing/HowItWorks';
 import { Footer } from '../features/landing/Footer';
 import { CreateRoomModal } from '../features/room-entry/CreateRoomModal';
-import { RoomPage } from './RoomPage';
+const RoomPage = lazy(() => import('./RoomPage').then(module => ({ default: module.RoomPage })));
 
 export function LandingPage() {
   const [searchParams] = useSearchParams();

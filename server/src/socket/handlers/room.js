@@ -10,9 +10,10 @@ function registerRoomHandlers(io, socket) {
 
   // ---- room:create ----
   socket.on('room:create', (payload, ack) => {
+    ack = typeof ack === 'function' ? ack : undefined;
     const result = createRoomSchema.safeParse(payload);
     if (!result.success) {
-      return ack?.({ error: { code: 'INVALID_PAYLOAD', message: result.error.errors[0]?.message ?? 'Invalid payload' } });
+      return ack?.({ error: { code: 'INVALID_PAYLOAD', message: result.error.issues[0]?.message ?? 'Invalid payload' } });
     }
 
     const { type = 'STUDY', name, subject, customSubject, durationMin, maxParticipants, displayName } = result.data;
@@ -25,6 +26,8 @@ function registerRoomHandlers(io, socket) {
       attempts++;
     } while (roomStore.codeExists(roomCode) && attempts < 20);
 
+    if (roomStore.codeExists(roomCode)) return ack?.({ error: { code: 'BUSY', message: 'Please try again.' } });
+    handleLeave(io, socket);
     const roomId = uuidv4();
     const participantId = uuidv4();
     const token = uuidv4();
@@ -58,11 +61,12 @@ function registerRoomHandlers(io, socket) {
       participants: { [participantId]: participant },
       messages: [],
       sharedNotes: '',
+      notesRevision: 0,
       whiteboardState: [],
       focusSession: null,
       goals: [],
       quizState: null,
-      codeState: { code: '', language: 'python' },
+      codeState: { code: '', language: 'python', revision: 0 },
       files: [],
     };
 
@@ -79,6 +83,7 @@ function registerRoomHandlers(io, socket) {
 
   // ---- room:join ----
   socket.on('room:join', (payload, ack) => {
+    ack = typeof ack === 'function' ? ack : undefined;
     const result = joinRoomSchema.safeParse(payload);
     if (!result.success) {
       return ack?.({ error: { code: 'INVALID_PAYLOAD', message: 'That room code doesn\'t look right.' } });
@@ -95,6 +100,8 @@ function registerRoomHandlers(io, socket) {
     }
 
     const { roomId } = room;
+
+    if (socket.data.roomId && socket.data.roomId !== roomId) handleLeave(io, socket);
 
     // Reconnection: try matching existing token
     if (participantToken) {
@@ -113,6 +120,7 @@ function registerRoomHandlers(io, socket) {
         roomStore.updateParticipant(roomId, existing.participantId, {
           socketId: socket.id,
           status: 'connected',
+          disconnectedAt: undefined,
         });
         socket.join(roomId);
         socket.data.roomId = roomId;
@@ -130,12 +138,6 @@ function registerRoomHandlers(io, socket) {
       }
     }
 
-    // New join: check capacity
-    const count = roomStore.participantCount(roomId);
-    if (count >= room.maxParticipants) {
-      return ack?.({ error: { code: 'ROOM_FULL', message: 'This room is full.' } });
-    }
-
     // Guard against the same socket joining twice (e.g. double emit during reconnect race)
     if (socket.data.roomId === roomId && socket.data.participantId) {
       const existingP = room.participants[socket.data.participantId];
@@ -143,6 +145,12 @@ function registerRoomHandlers(io, socket) {
         const publicRoom = roomStore.toPublicRoom(roomStore.getById(roomId));
         return ack?.({ room: publicRoom, participantToken: existingP.token });
       }
+    }
+
+    // New join: check capacity
+    const count = roomStore.participantCount(roomId);
+    if (count >= room.maxParticipants) {
+      return ack?.({ error: { code: 'ROOM_FULL', message: 'This room is full.' } });
     }
 
     const participantId = uuidv4();
@@ -196,6 +204,7 @@ function registerRoomHandlers(io, socket) {
 
   // ---- room:remove-participant (host only) ----
   socket.on('room:remove-participant', (payload, ack) => {
+    ack = typeof ack === 'function' ? ack : undefined;
     const { roomId, participantId: requesterId } = socket.data ?? {};
     if (!roomId || !requesterId) {
       return ack?.({ error: { code: 'NOT_IN_ROOM', message: 'You are not in a room.' } });
@@ -269,7 +278,16 @@ function registerRoomHandlers(io, socket) {
 
   // ---- disconnect ----
   socket.on('disconnect', () => {
-    handleLeave(io, socket);
+    const { roomId, participantId } = socket.data;
+    const room = roomStore.getById(roomId);
+    if (!room?.participants[participantId]) return;
+    roomStore.updateParticipant(roomId, participantId, { status: 'disconnected', disconnectedAt: Date.now() });
+    io.to(roomId).emit('participant:update', { participant: { ...room.participants[participantId], token: undefined } });
+    const handle = setTimeout(() => {
+      const participant = roomStore.getById(roomId)?.participants[participantId];
+      if (participant?.status === 'disconnected' && participant.socketId === socket.id) handleLeave(io, socket);
+    }, Number(process.env.ROOM_EMPTY_GRACE_MS || 120000));
+    handle.unref?.();
   });
 }
 

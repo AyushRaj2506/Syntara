@@ -79,7 +79,7 @@ export function FeatureGrid() {
             <div className="capability-card__body">
               <h3 className="capability-card__title text-heading-lg">Shared Notes</h3>
               <p className="capability-card__desc text-body-sm">
-                Simultaneous multi-cursor markdown editing with real-time sync for everyone in the room.
+                Shared rich-text notes with live updates and conflict protection for concurrent edits.
               </p>
             </div>
             {/* Mini Demo */}

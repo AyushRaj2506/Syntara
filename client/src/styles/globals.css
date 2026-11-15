@@ -250,3 +250,7 @@ input, textarea, select {
     opacity: 0.8;
   }
 }
+
+.sync-status { padding: 8px 12px; color: var(--color-text-secondary); font-size: 12px; border-bottom: 1px solid var(--color-border-subtle); }
+.sync-status button { padding: 8px; margin-left: 8px; color: var(--color-text-primary); background: var(--color-surface-2); border: 1px solid var(--color-border-subtle); border-radius: 6px; cursor: pointer; }
+.sync-status pre { white-space: pre-wrap; max-height: 160px; overflow: auto; }

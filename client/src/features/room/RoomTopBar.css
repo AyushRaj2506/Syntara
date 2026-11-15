@@ -325,3 +325,17 @@
     display: none;
   }
 }
+
+@media (max-width: 1080px) { .room-top-bar__drawer-btn { display: flex; } }
+@media (max-width: 767px) {
+  .room-top-bar { gap: 6px; padding: 0 8px; height: 56px; }
+  .room-top-bar__left { flex: 0 0 auto; gap: 0; }
+  .room-top-bar__brand, .room-top-bar__room-info, .room-top-bar__presence-badge,
+  .room-top-bar__expiry, .room-top-bar__code-label { display: none; }
+  .room-top-bar__center { position: static; transform: none; flex: 1; min-width: 0; }
+  .room-top-bar__right { gap: 4px; flex: 0 0 auto; }
+  .room-top-bar__code-pill { min-height: 40px; padding: 6px 10px; }
+  .room-top-bar__menu-btn, .room-top-bar__drawer-btn, .room-top-bar .theme-toggle { width: 40px; height: 40px; }
+  .room-top-bar__conn-status { display: flex; }
+  .room-top-bar__conn-text { display: none; }
+}

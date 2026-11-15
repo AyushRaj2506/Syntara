@@ -18,41 +18,31 @@ function isRateLimited(socketId) {
 }
 
 /**
- * HTML-escape a string to prevent XSS when rendering as text.
- * @param {string} str
- * @returns {string}
- */
-function escapeHtml(str) {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
-
-/**
  * @param {import('socket.io').Server} io
  * @param {import('socket.io').Socket} socket
  */
 function registerChatHandlers(io, socket) {
-  socket.on('chat:send', (payload) => {
+  socket.on('chat:send', (payload, callback) => {
+    const ack = typeof callback === 'function' ? callback : () => {};
     const { roomId, participantId } = socket.data ?? {};
-    if (!roomId || !participantId) return;
+    if (!roomId || !participantId) return ack({ error: { message: 'You are not in a room.' } });
 
     if (isRateLimited(socket.id)) {
-      socket.emit('error', { code: 'RATE_LIMITED', message: 'Slow down — too many messages.' });
+      ack({ error: { code: 'RATE_LIMITED', message: 'Slow down — too many messages.' } });
       return;
     }
 
     const result = chatSendSchema.safeParse(payload);
-    if (!result.success) return;
+    if (!result.success) return ack({ error: { message: 'Invalid message.' } });
 
     const room = roomStore.getById(roomId);
-    if (!room) return;
+    if (!room || room.expiresAt <= Date.now()) return ack({ error: { message: 'Room has ended.' } });
 
     const participant = room.participants[participantId];
-    if (!participant) return;
+    if (!participant) return ack({ error: { message: 'Join the room again.' } });
+    const duplicate = room.messages.find(m => m.id === result.data.id);
+    if (duplicate) return duplicate.participantId === participantId ? ack({ message: duplicate }) : ack({ error: { message: 'Message ID already used.' } });
+    if (result.data.file && !room.files.some(f => f.url === result.data.file.url)) return ack({ error: { message: 'File is not available in this room.' } });
 
     /** @type {import('../../types/index.js').ChatMessage} */
     const message = {
@@ -60,14 +50,8 @@ function registerChatHandlers(io, socket) {
       type: 'user',
       participantId,
       displayName: participant.displayName,
-      text: result.data.text ? escapeHtml(result.data.text) : '',
-      file: result.data.file ? {
-        fileId: result.data.file.fileId,
-        fileName: escapeHtml(result.data.file.fileName),
-        fileSize: result.data.file.fileSize,
-        fileType: result.data.file.fileType,
-        url: result.data.file.url,
-      } : undefined,
+      text: result.data.text ? result.data.text : '',
+      file: result.data.file ? room.files.find(f => f.url === result.data.file.url) : undefined,
       createdAt: Date.now(),
     };
 
@@ -75,6 +59,7 @@ function registerChatHandlers(io, socket) {
     if (room.messages.length > 500) room.messages.shift();
 
     io.to(roomId).emit('chat:message', { message });
+    ack({ message });
   });
 
   socket.on('chat:typing', (payload) => {

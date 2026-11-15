@@ -1,5 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { socket } from '../lib/socket';
+import { useToast } from '../components/Toast';
+let pendingLeave;
 
 /**
  * Central room state manager. Subscribes to all socket events and provides
@@ -19,6 +21,7 @@ import { socket } from '../lib/socket';
  * }}
  */
 export function useRoom(roomCode, displayName) {
+  const { addToast } = useToast();
   const [room, setRoom] = useState(null);
   const [me, setMe] = useState(null);
   const [joinError, setJoinError] = useState(null);
@@ -36,9 +39,14 @@ export function useRoom(roomCode, displayName) {
 
   // ---- Connect and join ----
   useEffect(() => {
+    clearTimeout(pendingLeave);
     if (!roomCode) return;
 
-    const savedToken = tokenKey ? sessionStorage.getItem(tokenKey) : null;
+    let cancelled = false;
+    let joinAttempt = 0;
+    const connectionDeadline = setTimeout(() => {
+      if (!socket.connected && !cancelled) setJoinError({ code: 'TIMEOUT', message: 'Server is unavailable. Please refresh to retry.' });
+    }, 60000);
 
     if (!socket.connected) socket.connect();
 
@@ -47,12 +55,16 @@ export function useRoom(roomCode, displayName) {
       if (joiningRef.current) return;
       joiningRef.current = true;
 
-      socket.emit('room:join', {
+      const attempt = ++joinAttempt;
+      clearTimeout(connectionDeadline);
+      socket.timeout(15000).emit('room:join', {
         roomCode: roomCode.toUpperCase(),
-        displayName: displayName ?? undefined,
-        participantToken: savedToken ?? undefined,
-      }, (response) => {
+        displayName: displayName || undefined,
+        participantToken: sessionStorage.getItem(tokenKey) || undefined,
+      }, (err, response) => {
+        if (cancelled || attempt !== joinAttempt) return;
         joiningRef.current = false;
+        if (err) { setJoinError({ code: 'TIMEOUT', message: 'Connection timed out. Please refresh to retry.' }); return; }
 
         if (response?.error) {
           console.error('[room] Join error:', response.error);
@@ -82,45 +94,13 @@ export function useRoom(roomCode, displayName) {
       });
     };
 
-    if (socket.connected) {
-      doJoin();
-    } else {
-      socket.once('connect', doJoin);
-    }
+    const onDisconnect = () => { joiningRef.current = false; };
+    socket.on('connect', doJoin);
+    socket.on('disconnect', onDisconnect);
+    if (socket.connected) doJoin();
 
-    // Handle mid-session reconnects (transport-level reconnect, not initial connect)
-    // socket.io.on('reconnect') fires ONLY on re-connections, not on initial connect,
-    // which prevents the double-join race.
-    const onReconnect = () => {
-      joiningRef.current = false; // Reset flag in case it was stuck from a dropped request
-      const token = tokenKey ? sessionStorage.getItem(tokenKey) : null;
-      socket.emit('room:join', {
-        roomCode: roomCode.toUpperCase(),
-        displayName: displayName ?? undefined,
-        participantToken: token ?? undefined,
-      }, (response) => {
-        if (response?.room) {
-          setRoom(response.room);
-          setChatMessages(response.room.messages ?? []);
-          setGoals(response.room.goals ?? []);
-          setFocusSession(response.room.focusSession ?? null);
-          setQuizState(response.room.quizState ?? null);
-          // Re-identify self after reconnect
-          const myParticipant = Object.values(response.room.participants).find(
-            (p) => p.socketId === socket.id
-          );
-          if (myParticipant) {
-            setMe(myParticipant);
-            myParticipantIdRef.current = myParticipant.participantId;
-          }
-        }
-      });
-    };
-
-    // Use the socket manager's reconnect event (fires AFTER transport reconnects,
-    // NOT on the initial connection — preventing the double-join bug).
-    socket.io.on('reconnect', onReconnect);
-
+    const onError = error => addToast({ message: error.message || 'The action could not be completed.', type: 'error' });
+    socket.on('error', onError);
     // ---- Room events ----
     const onRoomClosed = ({ reason }) => {
       setRoom((prev) => prev ? { ...prev, _closed: reason } : prev);
@@ -179,12 +159,17 @@ export function useRoom(roomCode, displayName) {
     const onChatMessage = ({ message }) => {
       setChatMessages((prev) => {
         // Prevent duplicate append if we already optimistically added it
-        if (prev.some((m) => m.id === message.id)) return prev;
+        if (prev.some((m) => m.id === message.id)) return prev.map(m => m.id === message.id ? { ...message, delivery: 'sent' } : m);
         const next = [...prev, message];
         return next.slice(-500);
       });
     };
     socket.on('chat:message', onChatMessage);
+
+    const onNotes = ({ content, revision }) => setRoom(prev => prev ? { ...prev, sharedNotes: content, notesRevision: revision } : prev);
+    const onCode = (state) => setRoom(prev => prev ? { ...prev, codeState: state } : prev);
+    socket.on('notes:update', onNotes);
+    socket.on('code:update', onCode);
 
     // ---- Goals ----
     const onGoalCreate = ({ goal }) => setGoals((prev) => [...prev, goal]);
@@ -246,8 +231,8 @@ export function useRoom(roomCode, displayName) {
     // ---- Quiz ----
     const onQuizStart = ({ quizState: qs }) => setQuizState(qs);
     const onQuizNext  = ({ quizState: qs }) => setQuizState(qs);
-    const onQuizResults = ({ questionIndex, correctIndex, tally, leaderboard }) => {
-      setQuizState((prev) => prev ? { ...prev, _results: { questionIndex, correctIndex, tally }, _leaderboard: leaderboard } : prev);
+    const onQuizResults = ({ questionIndex, correctIndex, tally, leaderboard, status }) => {
+      setQuizState((prev) => prev ? { ...prev, status: status || prev.status, _results: { questionIndex, correctIndex, tally }, _leaderboard: leaderboard } : prev);
     };
     socket.on('quiz:start', onQuizStart);
     socket.on('quiz:next', onQuizNext);
@@ -257,7 +242,11 @@ export function useRoom(roomCode, displayName) {
       // Cancel in-flight join if the component unmounts mid-request
       joiningRef.current = false;
       socket.off('connect', doJoin);
-      socket.io.off('reconnect', onReconnect);
+      cancelled = true;
+      clearTimeout(connectionDeadline);
+      socket.off('error', onError);
+      pendingLeave = setTimeout(() => { if (socket.connected) socket.emit('room:leave'); }, 0);
+      socket.off('disconnect', onDisconnect);
       socket.off('room:closed', onRoomClosed);
       socket.off('participant:join', onParticipantJoin);
       socket.off('participant:leave', onParticipantLeave);
@@ -265,6 +254,8 @@ export function useRoom(roomCode, displayName) {
       socket.off('host:transfer', onHostTransfer);
       socket.off('participant:removed', onParticipantRemoved);
       socket.off('chat:message', onChatMessage);
+      socket.off('notes:update', onNotes);
+      socket.off('code:update', onCode);
       socket.off('goal:create', onGoalCreate);
       socket.off('goal:update', onGoalUpdate);
       socket.off('goal:delete', onGoalDelete);
@@ -282,8 +273,9 @@ export function useRoom(roomCode, displayName) {
   }, [roomCode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- Actions ----
-  const actions = {
-    sendChat: useCallback((text, file, id) => {
+  const actions = useMemo(() => ({
+    roomCode,
+    sendChat: (text, file, id) => {
       const messageId = id || crypto.randomUUID();
       
       // Optimistically append the message if text is provided
@@ -298,51 +290,52 @@ export function useRoom(roomCode, displayName) {
           text: text || '',
           file,
           createdAt: Date.now(),
+          delivery: 'pending',
         };
-        return [...prev, optimisticMsg].slice(-500);
+        return [...prev.filter(m => m.id !== messageId), optimisticMsg].slice(-500);
       });
       
-      socket.emit('chat:send', { id: messageId, text, file });
-    }, [me]),
-    appendLocalMessage: useCallback((msg) => {
+      const finish = (err, response) => setChatMessages(prev => prev.map(m => m.id !== messageId ? m :
+        response?.message ? { ...response.message, delivery: 'sent' } :
+          m.delivery === 'sent' ? m : { ...m, delivery: 'failed', error: response?.error?.message || 'Not delivered. Retry when connected.' }));
+      if (!socket.connected) finish(true);
+      else socket.timeout(10000).emit('chat:send', { id: messageId, text, file }, finish);
+    },
+    appendLocalMessage: ((msg) => {
       setChatMessages((prev) => {
         if (prev.some((m) => m.id === msg.id)) return prev;
         return [...prev, msg].slice(-500);
       });
-    }, []),
-    updateNotes: useCallback((content) => socket.emit('notes:update', { content }), []),
+    }),
 
-    clearNotes: useCallback(() => socket.emit('notes:clear'), []),
-    pingEditing: useCallback(() => socket.emit('notes:editing'), []),
-    drawStroke: useCallback((payload) => socket.emit('whiteboard:draw', payload), []),
-    clearBoard: useCallback(() => socket.emit('whiteboard:clear'), []),
-    undoStroke: useCallback((strokeId) => socket.emit('whiteboard:undo', { strokeId }), []),
-    updateCode: useCallback((code, language) => socket.emit('code:update', { code, language }), []),
-    clearCode: useCallback(() => socket.emit('code:clear'), []),
-    startFocus: useCallback((durationMin, breakMin) => socket.emit('focus:start', { durationMin, breakMin }), []),
-    pauseFocus: useCallback(() => socket.emit('focus:pause'), []),
-    resumeFocus: useCallback(() => socket.emit('focus:resume'), []),
-    endFocus: useCallback(() => socket.emit('focus:end'), []),
-    createGoal: useCallback((text) => socket.emit('goal:create', { text }), []),
-    toggleGoal: useCallback((goalId, completed) => socket.emit('goal:update', { goalId, completed }), []),
-    deleteGoal: useCallback((goalId) => socket.emit('goal:delete', { goalId }), []),
-    startQuiz: useCallback((questions) => socket.emit('quiz:start', { questions }), []),
-    submitQuizAnswer: useCallback((questionIndex, optionIndex) =>
-      socket.emit('quiz:submit', { questionIndex, optionIndex }), []),
-    removeParticipant: useCallback((targetParticipantId) => {
+    pingEditing: (() => socket.emit('notes:editing')),
+    drawStroke: ((payload) => socket.emit('whiteboard:draw', payload)),
+    clearBoard: (() => socket.emit('whiteboard:clear')),
+    undoStroke: ((strokeId) => socket.emit('whiteboard:undo', { strokeId })),
+    startFocus: ((durationMin, breakMin) => socket.emit('focus:start', { durationMin, breakMin })),
+    pauseFocus: (() => socket.emit('focus:pause')),
+    resumeFocus: (() => socket.emit('focus:resume')),
+    endFocus: (() => socket.emit('focus:end')),
+    createGoal: ((text) => socket.emit('goal:create', { text })),
+    toggleGoal: ((goalId, completed) => socket.emit('goal:update', { goalId, completed })),
+    deleteGoal: ((goalId) => socket.emit('goal:delete', { goalId })),
+    startQuiz: ((questions) => socket.emit('quiz:start', { questions })),
+    submitQuizAnswer: ((questionIndex, optionIndex) =>
+      socket.emit('quiz:submit', { questionIndex, optionIndex })),
+    removeParticipant: ((targetParticipantId) => {
       socket.emit('room:remove-participant', { targetParticipantId }, (response) => {
         if (response?.error) {
           console.error('[room] Remove participant error:', response.error);
         }
       });
-    }, []),
-    leaveRoom: useCallback(() => {
+    }),
+    leaveRoom: (() => {
       socket.emit('room:leave');
       socket.disconnect();
       myParticipantIdRef.current = null;
       if (tokenKey) sessionStorage.removeItem(tokenKey);
-    }, [tokenKey]),
-  };
+    }),
+  }), [me, tokenKey, roomCode]);
 
   return { room, me, joinError, chatMessages, goals, focusSession, quizState, actions };
 }
