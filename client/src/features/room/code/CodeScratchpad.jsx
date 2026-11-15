@@ -133,6 +133,7 @@ function CodeEditor({ actions, doc }) {
   useEffect(() => {
     const text = doc.getText('code');
     const before = transaction => {
+      selection.current = null;
       const input = textareaRef.current;
       if (transaction.origin === 'remote' && input === window.document.activeElement) {
         selection.current = [Y.createRelativePositionFromTypeIndex(text, input.selectionStart), Y.createRelativePositionFromTypeIndex(text, input.selectionEnd)];
@@ -151,8 +152,8 @@ function CodeEditor({ actions, doc }) {
       }
       setValue({ code: nextCode, language: doc.getMap('settings').get('language') || 'python' });
     };
-    doc.on('beforeTransaction', before); doc.on('update', update);
-    return () => { doc.off('beforeTransaction', before); doc.off('update', update); };
+    doc.on('beforeTransaction', before); doc.on('afterTransaction', update);
+    return () => { doc.off('beforeTransaction', before); doc.off('afterTransaction', update); };
   }, [doc]);
   const change = ({ code: next, language: nextLanguage }) => {
     const text = doc.getText('code');
