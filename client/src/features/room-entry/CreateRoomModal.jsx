@@ -131,7 +131,7 @@ export function CreateRoomModal({ open, onClose }) {
 
   const handleEnter = useCallback(() => {
     if (!createdRoom?.roomCode) return;
-    navigate(`/room/${createdRoom.roomCode}`);
+    navigate(`/?room=${encodeURIComponent(createdRoom.roomCode)}`);
     onClose();
   }, [createdRoom, navigate, onClose]);
 

@@ -91,7 +91,7 @@ export function Navbar({ onCreateRoom }) {
     sessionStorage.setItem('syntara:displayName', finalName);
 
     setJoinOpen(false);
-    navigate(`/room/${upper}`);
+    navigate(`/?room=${encodeURIComponent(upper)}`);
   };
 
   return (

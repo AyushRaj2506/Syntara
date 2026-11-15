@@ -8,7 +8,7 @@ async function seed(page) {
     sessionStorage.setItem('syntara:displayName', 'Tester');
     sessionStorage.setItem(`syntara:session:${room.roomCode}`, participantToken);
   }, result);
-  await page.goto(`/room/${result.room.roomCode}`);
+  await page.goto(`/?room=${result.room.roomCode}`);
   await expect(page.locator('.notes-editor-content')).toBeVisible();
   socket.disconnect();
   return result.room;
