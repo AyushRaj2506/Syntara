@@ -14,7 +14,7 @@
 - **Synchronized Study Tools**:
   - **Collaborative Whiteboard**: Real-time canvas with smooth pen, eraser, color palette, stroke sizing, and global clear/undo sync.
   - **Live Study Notes**: Synchronized rich-text editor with headings, lists, code blocks, editing presence, and revision conflict protection. Unsaved drafts stay in browser session storage until saved or discarded.
-  - **Multi-Language Code Scratchpad**: Shared Python and C++ editor with revision conflict protection. Python runs in a browser worker after downloading Pyodide; C++ uses the server-side Wandbox proxy.
+  - **Multi-Language Code Scratchpad**: Shared Python and C++ editor with revision conflict protection. Python runs in a browser worker after downloading Pyodide; C++ uses the server-side Compiler Explorer proxy with Wandbox fallback.
   - **Focus Sprint Timer**: Synchronized focus timer with configurable sprints, pause/resume, and explicit reset.
   - **Interactive Group Quizzes**: Create multiple-choice quizzes with live timers, synchronized question progression, and instant leaderboards.
 - **Syntara Design System**: Custom theme engine supporting dark and warm light modes with high-contrast UI, custom typography, and responsive zoom scaling (67%–125%).

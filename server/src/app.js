@@ -122,6 +122,10 @@ app.post('/api/run', requireMember, async (req, res) => {
     return res.status(400).json({ error: 'Code too large (max 100 KB).' });
   }
 
+  if (language === 'cpp') {
+    try { return res.json(await require('./services/cppExecution').executeCpp(code)); }
+    catch (err) { console.warn('[run] Primary compiler unavailable:', err.message); }
+  }
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30_000);
 

@@ -27,6 +27,6 @@ Deploy frontend and backend together: their collaboration and upload contracts c
 
 The server keeps rooms in memory. Deploy a single backend instance; restarts end rooms. Horizontal scaling requires a shared room store and socket adapter and is outside this repair.
 
-Python needs an initial Pyodide runtime download and then executes in a browser worker. C++ execution depends on Wandbox availability. Automated tests do not submit code to that third-party service.
+Python needs an initial Pyodide runtime download and then executes in a browser worker. C++ runs in Compiler Explorer (GCC 13.2/C++20), with Wandbox as fallback when the primary service is unavailable. Source code is sent to these third-party compiler services on Run. Automated tests do not submit code to that third-party service.
 
 The release includes 8 backend regression tests, 5 browser scenarios, and a GitHub Actions workflow. The backend health endpoint reports RENDER_GIT_COMMIT so deployments can be checked against the GitHub commit.

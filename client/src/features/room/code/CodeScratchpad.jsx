@@ -105,7 +105,7 @@ async function runCpp(code, roomCode) {
   } catch {
     return {
       error:
-        'C++ execution requires a sandboxed compiler service that is currently unavailable.\n\n' +
+        'C++ execution requires a sandboxed compiler services that are currently unavailable.\n\n' +
         'Python runs in your browser after its runtime downloads. Switch to Python to run code.',
     };
   }
