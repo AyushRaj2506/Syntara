@@ -34,7 +34,6 @@ export function Whiteboard({ initialStrokes = [], participantId, actions }) {
 
   // Stroke memory & undo stack
   const strokesRef = useRef([...initialStrokes]);
-  const undoStackRef = useRef([]);
   const activeStrokeRef = useRef(null);
   const lastPointRef = useRef(null);
   const lastEmitTimeRef = useRef(0);
@@ -126,6 +125,9 @@ export function Whiteboard({ initialStrokes = [], participantId, actions }) {
     Object.values(remoteInFlightRef.current).forEach((stroke) => {
       drawStrokeToContext(ctx, stroke, width, height);
     });
+    if (activeStrokeRef.current) {
+      drawStrokeToContext(ctx, activeStrokeRef.current, width, height);
+    }
   }, [bgColor, gridDotColor, drawStrokeToContext]);
 
   // Immediate local segment drawing (0ms latency for self)
@@ -233,11 +235,12 @@ export function Whiteboard({ initialStrokes = [], participantId, actions }) {
   // NOTE: committed strokes (done=true) are handled entirely by useRoom.js → initialStrokes.
   // We only subscribe here for the in-flight preview (done=false).
   useEffect(() => {
-    const handleRemoteDraw = ({ strokeId, points, color: strokeColor, size: strokeSize, done }) => {
+    const handleRemoteDraw = ({ strokeId, participantId, points, color: strokeColor, size: strokeSize, done }) => {
       if (!done) {
         // Update or create the in-flight preview stroke
         remoteInFlightRef.current[strokeId] = {
           strokeId,
+          participantId,
           color: strokeColor,
           size: strokeSize,
           points,
@@ -251,26 +254,39 @@ export function Whiteboard({ initialStrokes = [], participantId, actions }) {
     };
 
     const handleRemoteClear = () => {
-      undoStackRef.current = [];
+      activeStrokeRef.current = null;
+      lastPointRef.current = null;
       // useRoom already clears whiteboardState; we just clear in-flight
       remoteInFlightRef.current = {};
       redrawCanvas();
     };
 
-    const handleRemoteUndo = () => {
-      // useRoom already updates whiteboardState; we just redraw
+    const removePreviews = ({ participantId }) => {
+      for (const [id, stroke] of Object.entries(remoteInFlightRef.current)) {
+        if (stroke.participantId === participantId) delete remoteInFlightRef.current[id];
+      }
+      redrawCanvas();
+    };
+    const onParticipantUpdate = ({ participant }) => {
+      if (participant.status === 'disconnected') removePreviews(participant);
+    };
+    const onDisconnect = () => {
       remoteInFlightRef.current = {};
       redrawCanvas();
     };
 
     socket.on('whiteboard:draw', handleRemoteDraw);
     socket.on('whiteboard:clear', handleRemoteClear);
-    socket.on('whiteboard:undo', handleRemoteUndo);
+    socket.on('participant:leave', removePreviews);
+    socket.on('participant:update', onParticipantUpdate);
+    socket.on('disconnect', onDisconnect);
 
     return () => {
       socket.off('whiteboard:draw', handleRemoteDraw);
       socket.off('whiteboard:clear', handleRemoteClear);
-      socket.off('whiteboard:undo', handleRemoteUndo);
+      socket.off('participant:leave', removePreviews);
+      socket.off('participant:update', onParticipantUpdate);
+      socket.off('disconnect', onDisconnect);
     };
   }, [redrawCanvas]);
 
@@ -351,13 +367,11 @@ export function Whiteboard({ initialStrokes = [], participantId, actions }) {
     if (lastPointRef.current) {
       drawSegment(lastPointRef.current, pt, activeStrokeRef.current.color, activeStrokeRef.current.size);
       if (activeStrokeRef.current.points.length >= 1998) activeStrokeRef.current.points = activeStrokeRef.current.points.filter((_, i) => i % 2 === 0);
-    activeStrokeRef.current.points.push(pt);
+      activeStrokeRef.current.points.push(pt);
     }
 
     // Push to local strokesRef immediately for correct local undo
     strokesRef.current.push(activeStrokeRef.current);
-    undoStackRef.current.push(activeStrokeRef.current.strokeId);
-    if (undoStackRef.current.length > 30) undoStackRef.current.shift();
 
     actions.drawStroke({
       strokeId: activeStrokeRef.current.strokeId,
@@ -373,15 +387,10 @@ export function Whiteboard({ initialStrokes = [], participantId, actions }) {
   };
 
   const handleUndo = () => {
-    if (strokesRef.current.length === 0) return;
-    const lastId = undoStackRef.current.pop();
-    if (lastId) {
-      strokesRef.current = strokesRef.current.filter((s) => s.strokeId !== lastId);
-      actions.undoStroke?.(lastId);
-    } else {
-      const removed = strokesRef.current.pop();
-      if (removed) actions.undoStroke?.(removed.strokeId);
-    }
+    const last = strokesRef.current.findLast(stroke => stroke.participantId === participantId);
+    if (!last) return;
+    strokesRef.current = strokesRef.current.filter(stroke => stroke.strokeId !== last.strokeId);
+    actions.undoStroke?.(last.strokeId);
     setHasStrokes(strokesRef.current.length > 0);
     redrawCanvas();
   };
@@ -389,7 +398,6 @@ export function Whiteboard({ initialStrokes = [], participantId, actions }) {
   const handleClear = () => {
     strokesRef.current = [];
     remoteInFlightRef.current = {};
-    undoStackRef.current = [];
     setHasStrokes(false);
     actions.clearBoard();
     redrawCanvas();

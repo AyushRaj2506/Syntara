@@ -106,7 +106,7 @@ export function WhiteboardToolbar({
           type="button"
           className="wb-btn"
           onClick={onUndo}
-          title="Undo last stroke"
+          title="Undo your last stroke"
           aria-label="Undo"
         >
           <RotateCcw size={16} />

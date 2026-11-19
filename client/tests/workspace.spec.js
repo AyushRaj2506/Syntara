@@ -1,3 +1,4 @@
+import whiteboardChecks from './verify-whiteboard.cjs';
 import { test, expect } from '@playwright/test';
 import { io } from 'socket.io-client';
 async function seed(page) {
@@ -145,4 +146,21 @@ test('quiz can start, finish, release workspace tabs, and start again', async ({
   await page.getByRole('tab', { name: 'Quiz', exact: true }).click();
   await page.getByRole('button', { name: 'New quiz' }).click();
   await expect(page.getByRole('heading', { name: 'Create a Quiz' })).toBeVisible();
+});
+
+test('three people see active and committed whiteboard strokes, undo and refresh', async ({ page, browser }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const room = await seed(page);
+  const contexts = await Promise.all([browser.newContext(), browser.newContext()]);
+  try {
+    const peers = await Promise.all(contexts.map(context => context.newPage()));
+    await Promise.all(peers.map(async (peer, index) => {
+      await peer.addInitScript(name => sessionStorage.setItem('syntara:displayName', name), 'Artist ' + index);
+      await peer.goto('http://127.0.0.1:5175/?room=' + room.roomCode);
+      await expect(peer.locator('.notes-editor-content')).toBeVisible();
+    }));
+    await whiteboardChecks.verifyWhiteboard([page, ...peers]);
+  } finally {
+    await Promise.all(contexts.map(context => context.close()));
+  }
 });

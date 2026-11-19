@@ -2,6 +2,8 @@ const { chromium, expect } = require('@playwright/test');
 const { io } = require('socket.io-client');
 const front = process.env.SYNTARA_TEST_URL || 'https://syntara-hism.onrender.com';
 const back = process.env.SYNTARA_TEST_BACKEND || 'https://syntara-server.onrender.com';
+
+const { verifyWhiteboard } = require('./verify-whiteboard.cjs');
 (async () => {
  const browser = await chromium.launch({channel:'chrome',headless:true});
  const socket=io(back,{transports:['websocket'],timeout:60000,reconnection:false});
@@ -17,18 +19,26 @@ const back = process.env.SYNTARA_TEST_BACKEND || 'https://syntara-server.onrende
    await page.goto(`${front}/?room=${created.room.roomCode}`);await expect(page.locator('.notes-editor-content')).toBeVisible({timeout:60000});
   }
   socket.disconnect();
+  await verifyWhiteboard(pages);
+  await Promise.all(pages.map(page => page.getByRole('tab', { name: 'Notes', exact: true }).click()));
   const host=pages[0], notes=host.locator('.notes-editor-content');
   await notes.fill('paragraph zero');await notes.press('End');await notes.press('Enter');await host.keyboard.insertText('paragraph one');await notes.press('Enter');await host.keyboard.insertText('paragraph two');
   for(const page of pages)await expect(page.locator('.notes-editor-content p')).toHaveCount(3);
   await Promise.all(pages.map(async(page,index)=>{const paragraph=page.locator('.notes-editor-content p').nth(index);await paragraph.click();await page.keyboard.press('End');await page.keyboard.type(` writer${index}-finished`,{delay:45})}));
   for(const page of pages)for(let index=0;index<3;index++)await expect(page.locator('.notes-editor-content')).toContainText(`writer${index}-finished`,{timeout:20000});
   console.log('PASS three users continuously type in notes without replacing peers');
+  for (const page of pages) await expect(page.locator('.notes-editor-content p')).toHaveText(
+    ['paragraph zero writer0-finished', 'paragraph one writer1-finished', 'paragraph two writer2-finished']
+  );
   await Promise.all(pages.map(page=>page.getByRole('tab',{name:'Code',exact:true}).click()));
   await host.getByRole('textbox',{name:'Code editor'}).fill('# first\n# second\n# third');
   for(const page of pages)await expect(page.getByRole('textbox',{name:'Code editor'})).toHaveValue('# first\n# second\n# third');
   await Promise.all(pages.map(async(page,index)=>{const input=page.getByRole('textbox',{name:'Code editor'});await input.focus();await input.press('Control+Home');for(let row=0;row<index;row++)await input.press('ArrowDown');await input.press('End');await input.pressSequentially(` code${index}-finished`,{delay:45})}));
   for(const page of pages)for(let index=0;index<3;index++)await expect(page.getByRole('textbox',{name:'Code editor'})).toHaveValue(new RegExp(`code${index}-finished`),{timeout:20000});
   console.log('PASS three users continuously type in code with stable cursor positions');
+  for (const page of pages) await expect(page.getByRole('textbox', { name: 'Code editor' })).toHaveValue(
+    '# first code0-finished\n# second code1-finished\n# third code2-finished'
+  );
   await Promise.all(contexts.map(context=>context.setOffline(true)));
   await Promise.all(pages.map(async(page,index)=>{const input=page.getByRole('textbox',{name:'Code editor'});await input.press('Control+End');await input.pressSequentially(` offline${index}`,{delay:20})}));
   await Promise.all(contexts.map(context=>context.setOffline(false)));
