@@ -40,7 +40,6 @@ export function GoalList({ goals = [], meId, hostId, actions }) {
           <div className="goal-list__empty">
             <CheckSquare size={16} className="text-tertiary" />
             <div className="goal-list__empty-text">
-              <p className="text-caption font-medium text-secondary">Nothing planned yet.</p>
               <p className="text-caption text-tertiary">Add a goal for this session.</p>
             </div>
           </div>

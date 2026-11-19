@@ -1,3 +1,4 @@
+import { ToolbarMore } from '../../../components/ToolbarMore';
 import { useState } from 'react';
 import { Pen, Eraser, RotateCcw, Trash2, Check, X } from 'lucide-react';
 import { GlassPanel } from '../../../components/GlassPanel';
@@ -60,46 +61,6 @@ export function WhiteboardToolbar({
         </button>
       </div>
 
-      <div className="wb-divider" />
-
-      {/* Stroke Sizes */}
-      <div className="wb-tool-group">
-        {(['S', 'M', 'L']).map((s) => (
-          <button
-            key={s}
-            type="button"
-            className={`wb-btn wb-btn--dot ${size === s ? 'wb-btn--active' : ''}`}
-            onClick={() => setSize(s)}
-            title={`Stroke Size ${s}`}
-            aria-label={`Stroke Size ${s}`}
-          >
-            <span className={`wb-dot wb-dot--${s.toLowerCase()}`} />
-          </button>
-        ))}
-      </div>
-
-      <div className="wb-divider" />
-
-      {/* Colors */}
-      <div className="wb-tool-group">
-        {palette.map((c) => (
-          <button
-            key={c}
-            type="button"
-            className={`wb-color-swatch ${color === c && tool === 'pen' ? 'wb-color-swatch--selected' : ''}`}
-            style={{ backgroundColor: c }}
-            onClick={() => {
-              setColor(c);
-              setTool('pen');
-            }}
-            title={`Select color ${c}`}
-            aria-label={`Color ${c}`}
-          />
-        ))}
-      </div>
-
-      <div className="wb-divider" />
-
       {/* Actions */}
       <div className="wb-tool-group">
         <button
@@ -112,40 +73,76 @@ export function WhiteboardToolbar({
           <RotateCcw size={16} />
         </button>
 
-        {confirmingClear ? (
-          <div className="wb-confirm-group" role="group" aria-label="Confirm clear board">
-            <span className="wb-confirm-label">Clear?</span>
-            <button
-              type="button"
-              className="wb-btn wb-btn--confirm-yes"
-              onClick={() => { setConfirmingClear(false); onClear(); }}
-              title="Yes, clear the board"
-              aria-label="Yes, clear board"
-            >
-              <Check size={14} />
-            </button>
-            <button
-              type="button"
-              className="wb-btn wb-btn--confirm-no"
-              onClick={() => setConfirmingClear(false)}
-              title="Cancel"
-              aria-label="Cancel clear"
-            >
-              <X size={14} />
-            </button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            className="wb-btn wb-btn--danger"
-            onClick={() => setConfirmingClear(true)}
-            title="Clear Board"
-            aria-label="Clear board"
-          >
-            <Trash2 size={16} />
-          </button>
-        )}
       </div>
+      <ToolbarMore>
+        {/* Stroke Sizes */}
+        <div className="wb-tool-group">
+          {(['S', 'M', 'L']).map((s) => (
+            <button
+              key={s}
+              type="button"
+              className={`wb-btn wb-btn--dot ${size === s ? 'wb-btn--active' : ''}`}
+              onClick={() => setSize(s)}
+              title={`Stroke Size ${s}`}
+              aria-label={`Stroke Size ${s}`}
+            >
+              <span className={`wb-dot wb-dot--${s.toLowerCase()}`} />
+            </button>
+          ))}
+        </div>
+
+        {/* Colors */}
+        <div className="wb-tool-group">
+          {palette.map((c) => (
+            <button
+              key={c}
+              type="button"
+              className={`wb-color-swatch ${color === c && tool === 'pen' ? 'wb-color-swatch--selected' : ''}`}
+              style={{ backgroundColor: c }}
+              onClick={() => {
+                setColor(c);
+                setTool('pen');
+              }}
+              title={`Select color ${c}`}
+              aria-label={`Color ${c}`}
+            />
+          ))}
+        </div>
+
+          {confirmingClear ? (
+            <div className="wb-confirm-group" role="group" aria-label="Confirm clear board">
+              <span className="wb-confirm-label">Clear?</span>
+              <button
+                type="button"
+                className="wb-btn wb-btn--confirm-yes"
+                onClick={() => { setConfirmingClear(false); onClear(); }}
+                title="Yes, clear the board"
+                aria-label="Yes, clear board"
+              >
+                <Check size={14} />
+              </button>
+              <button
+                type="button"
+                className="wb-btn wb-btn--confirm-no"
+                onClick={() => setConfirmingClear(false)}
+                title="Cancel"
+                aria-label="Cancel clear"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="wb-btn wb-btn--danger"
+              onClick={() => setConfirmingClear(true)}
+              title="Clear Board"
+              aria-label="Clear board"
+            >
+              <Trash2 size={16} />
+            </button>
+          )}
+      </ToolbarMore>
     </GlassPanel>
   );
 }

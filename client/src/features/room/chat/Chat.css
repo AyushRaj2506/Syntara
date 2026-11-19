@@ -1105,3 +1105,10 @@
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+@media (min-width: 768px) {
+  .room-layout__right .chat__empty-glyph,
+  .room-layout__right .chat__empty-desc { display: none; }
+  .room-layout__right .chat__empty-title { font-size: 14px; }
+  .room-layout__right .chat-suggestion-chips { flex-direction: row; flex-wrap: wrap; }
+}

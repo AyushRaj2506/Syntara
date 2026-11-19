@@ -1,3 +1,4 @@
+import { ToolbarMore } from '../../../components/ToolbarMore';
 import { useCollaborativeDocument } from '../../../hooks/useCollaborativeDocument';
 import * as Y from 'yjs';
 import { useToast } from '../../../hooks/useToast';
@@ -296,51 +297,53 @@ function CodeEditor({ actions, doc }) {
             <span>{running ? 'Running…' : 'Run'}</span>
           </button>
 
-          <button
-            type="button"
-            className="code-action-btn"
-            onClick={handleCopy}
-            title="Copy code to clipboard"
-            aria-label={copied ? 'Copied code' : 'Copy code'}
-          >
-            {copied ? <Check size={13} className="text-success" /> : <Copy size={13} />}
-            <span>{copied ? 'Copied' : 'Copy'}</span>
-          </button>
-
-          {confirmingClear ? (
-            <div className="code-confirm-group" role="group" aria-label="Confirm clear code">
-              <span className="code-confirm-label text-caption">Clear?</span>
-              <button
-                type="button"
-                className="code-action-btn code-action-btn--confirm-yes"
-                onClick={handleClear}
-                title="Yes, clear all code"
-                aria-label="Yes, clear code"
-              >
-                <Check size={12} className="text-success" />
-              </button>
-              <button
-                type="button"
-                className="code-action-btn"
-                onClick={() => setConfirmingClear(false)}
-                title="Cancel"
-                aria-label="Cancel clear"
-              >
-                Cancel
-              </button>
-            </div>
-          ) : (
+          <ToolbarMore>
             <button
               type="button"
-              className="code-action-btn code-action-btn--danger"
-              onClick={() => setConfirmingClear(true)}
-              title="Clear code"
-              aria-label="Clear code"
+              className="code-action-btn"
+              onClick={handleCopy}
+              title="Copy code to clipboard"
+              aria-label={copied ? 'Copied code' : 'Copy code'}
             >
-              <Trash2 size={13} />
-              <span>Clear</span>
+              {copied ? <Check size={13} className="text-success" /> : <Copy size={13} />}
+              <span>{copied ? 'Copied' : 'Copy'}</span>
             </button>
-          )}
+
+            {confirmingClear ? (
+              <div className="code-confirm-group" role="group" aria-label="Confirm clear code">
+                <span className="code-confirm-label text-caption">Clear?</span>
+                <button
+                  type="button"
+                  className="code-action-btn code-action-btn--confirm-yes"
+                  onClick={handleClear}
+                  title="Yes, clear all code"
+                  aria-label="Yes, clear code"
+                >
+                  <Check size={12} className="text-success" />
+                </button>
+                <button
+                  type="button"
+                  className="code-action-btn"
+                  onClick={() => setConfirmingClear(false)}
+                  title="Cancel"
+                  aria-label="Cancel clear"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="code-action-btn code-action-btn--danger"
+                onClick={() => setConfirmingClear(true)}
+                title="Clear code"
+                aria-label="Clear code"
+              >
+                <Trash2 size={13} />
+                <span>Clear</span>
+              </button>
+            )}
+          </ToolbarMore>
         </div>
       </div>
 

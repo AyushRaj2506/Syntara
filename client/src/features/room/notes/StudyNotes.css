@@ -182,3 +182,8 @@
   .toolbar-btn { width: 40px; height: 40px; }
   .study-notes__toolbar { padding: 4px 8px; }
 }
+
+@media (max-width: 767px) {
+  .study-notes__toolbar { position: relative; z-index: 2; overflow: visible; flex-wrap: wrap; gap: 4px; }
+  .study-notes__presence { margin-left: 0; }
+}

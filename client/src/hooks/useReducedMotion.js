@@ -1,12 +1,10 @@
-import { useState } from 'react';
+import { useSyncExternalStore } from 'react';
 
-/**
- * Returns true if the user prefers reduced motion.
- * @returns {boolean}
- */
+const query = window.matchMedia('(prefers-reduced-motion: reduce)');
+function subscribe(listener) {
+  query.addEventListener('change', listener);
+  return () => query.removeEventListener('change', listener);
+}
 export function useReducedMotion() {
-  const [prefersReduced] = useState(
-    () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  );
-  return prefersReduced;
+  return useSyncExternalStore(subscribe, () => query.matches);
 }

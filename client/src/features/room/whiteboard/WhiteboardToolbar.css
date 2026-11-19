@@ -131,3 +131,9 @@
   color: var(--color-text-primary);
   background-color: var(--color-surface-2);
 }
+
+@media (max-width: 767px) {
+  .whiteboard-toolbar { overflow: visible; }
+  .wb-btn { width: 40px; height: 40px; }
+  .wb-color-swatch { height: 30px; width: 30px; }
+}

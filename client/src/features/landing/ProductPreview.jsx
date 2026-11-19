@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   FileText,
   Timer,
@@ -8,6 +8,7 @@ import {
   Copy,
   Check
 } from 'lucide-react';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { Badge } from '../../components/Badge';
 import './ProductPreview.css';
 
@@ -24,53 +25,34 @@ const STREAMING_MESSAGES = [
 ];
 
 export function ProductPreview() {
-  const [messages, setMessages] = useState(INITIAL_MESSAGES);
-  const [isTyping, setIsTyping] = useState(true);
-  const [typingUser, setTypingUser] = useState('Priya Sharma');
-  const [secondsLeft, setSecondsLeft] = useState(24 * 60 + 38);
-  const [participantCount, setParticipantCount] = useState(3);
+  const section = useRef(null);
+  const reducedMotion = useReducedMotion();
+  const [visible, setVisible] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
   const [copiedCode, setCopiedCode] = useState(false);
 
-  // Real-time ticking Pomodoro timer
   useEffect(() => {
-    const timer = setInterval(() => {
-      setSecondsLeft((prev) => (prev > 0 ? prev - 1 : 25 * 60));
-    }, 1000);
+    const observer = new IntersectionObserver(([entry]) => setVisible(entry.isIntersecting));
+    observer.observe(section.current);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!visible || reducedMotion) return;
+    const timer = setInterval(() => setElapsed(value => value + 1), 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [visible, reducedMotion]);
 
-  // Coordinated live presence cycle
-  useEffect(() => {
-    let step = 0;
-    const interval = setInterval(() => {
-      if (step === 0) {
-        setIsTyping(true);
-        setTypingUser('Priya Sharma');
-        setTimeout(() => {
-          setIsTyping(false);
-          setMessages((prev) => [...prev.slice(-2), STREAMING_MESSAGES[0]]);
-        }, 3000);
-      } else if (step === 1) {
-        setHasNewJoiner(true);
-        setParticipantCount(4);
-        setMessages((prev) => [...prev.slice(-2), STREAMING_MESSAGES[2]]);
-      } else if (step === 2) {
-        setIsTyping(true);
-        setTypingUser('Alex Vance');
-        setTimeout(() => {
-          setIsTyping(false);
-          setMessages((prev) => [...prev.slice(-2), STREAMING_MESSAGES[1]]);
-        }, 2600);
-      } else if (step === 3) {
-        setMessages(INITIAL_MESSAGES);
-        setHasNewJoiner(false);
-        setParticipantCount(3);
-      }
-      step = (step + 1) % 4;
-    }, 8000);
-
-    return () => clearInterval(interval);
-  }, []);
+  const tick = reducedMotion ? 0 : elapsed;
+  const phase = tick % 32;
+  const messages = [...INITIAL_MESSAGES];
+  if (phase >= 11) messages.push(STREAMING_MESSAGES[0]);
+  if (phase >= 16) messages.push(STREAMING_MESSAGES[2]);
+  if (phase >= 27) messages.push(STREAMING_MESSAGES[1]);
+  const participantCount = phase >= 16 ? 4 : 3;
+  const typingUser = phase >= 24 ? 'Alex Vance' : 'Priya Sharma';
+  const isTyping = !reducedMotion && (phase < 11 || (phase >= 24 && phase < 27));
+  const secondsLeft = (24 * 60 + 38 - tick % 1501 + 1501) % 1501;
 
   const copyRoomCode = () => {
     navigator.clipboard?.writeText('DSA-7X92');
@@ -85,7 +67,7 @@ export function ProductPreview() {
   };
 
   return (
-    <section className="live-demo-section" aria-label="Living Study Room Demonstration">
+    <section ref={section} data-playing={visible && !reducedMotion} className="live-demo-section" aria-label="Living Study Room Demonstration">
       <div className="container-fluid">
         {/* Section Header */}
         <div className="live-demo__header">
@@ -191,7 +173,7 @@ export function ProductPreview() {
               </div>
 
               <div className="live-demo__chat-list">
-                {messages.map((m) => (
+                {messages.slice(-3).map((m) => (
                   <div key={m.id} className="live-demo__chat-bubble">
                     <div className="live-demo__chat-meta">
                       <span className="live-demo__chat-sender" style={{ color: m.color }}>{m.name}</span>

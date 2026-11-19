@@ -1,3 +1,4 @@
+import { ToolbarMore } from '../../../components/ToolbarMore';
 import { useCollaborativeDocument } from '../../../hooks/useCollaborativeDocument';
 import Collaboration from '@tiptap/extension-collaboration';
 import { SyncStatus } from '../../../components/SyncStatus';
@@ -103,28 +104,6 @@ function NotesEditor({ actions, doc }) {
     <div className="study-notes" style={{ minHeight: 0, flex: 1 }}>
       {/* Toolbar */}
       <div className="study-notes__toolbar" role="toolbar" aria-label="Notes formatting toolbar">
-        <div className="study-notes__tool-group">
-          <button
-            type="button"
-            className={`toolbar-btn ${editor.isActive('heading', { level: 1 }) ? 'is-active' : ''}`}
-            onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-            title="Heading 1"
-            aria-label="Heading 1"
-          >
-            <Heading1 size={15} />
-          </button>
-          <button
-            type="button"
-            className={`toolbar-btn ${editor.isActive('heading', { level: 2 }) ? 'is-active' : ''}`}
-            onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-            title="Heading 2"
-            aria-label="Heading 2"
-          >
-            <Heading2 size={15} />
-          </button>
-        </div>
-
-        <div className="study-notes__divider" />
 
         <div className="study-notes__tool-group">
           <button
@@ -156,40 +135,6 @@ function NotesEditor({ actions, doc }) {
           </button>
         </div>
 
-        <div className="study-notes__divider" />
-
-        <div className="study-notes__tool-group">
-          <button
-            type="button"
-            className={`toolbar-btn ${editor.isActive('bulletList') ? 'is-active' : ''}`}
-            onClick={() => editor.chain().focus().toggleBulletList().run()}
-            title="Bullet List"
-            aria-label="Bullet list"
-          >
-            <List size={15} />
-          </button>
-          <button
-            type="button"
-            className={`toolbar-btn ${editor.isActive('orderedList') ? 'is-active' : ''}`}
-            onClick={() => editor.chain().focus().toggleOrderedList().run()}
-            title="Numbered List"
-            aria-label="Numbered list"
-          >
-            <ListOrdered size={15} />
-          </button>
-          <button
-            type="button"
-            className={`toolbar-btn ${editor.isActive('blockquote') ? 'is-active' : ''}`}
-            onClick={() => editor.chain().focus().toggleBlockquote().run()}
-            title="Blockquote"
-            aria-label="Quote"
-          >
-            <Quote size={15} />
-          </button>
-        </div>
-
-        <div className="study-notes__divider" />
-
         <div className="study-notes__tool-group">
           <button
             type="button"
@@ -212,44 +157,96 @@ function NotesEditor({ actions, doc }) {
             <RotateCw size={15} />
           </button>
 
-          {confirmingClear ? (
-            <div className="notes-confirm-group" role="group" aria-label="Confirm clear notes">
-              <span className="notes-confirm-label text-caption">Clear notes?</span>
-              <button
-                type="button"
-                className="toolbar-btn toolbar-btn--confirm-yes"
-                onClick={() => {
-                  setConfirmingClear(false);
-                  handleClearNotes();
-                }}
-                title="Yes, clear all notes"
-                aria-label="Yes, clear notes"
-              >
-                <Check size={13} />
-              </button>
-              <button
-                type="button"
-                className="toolbar-btn toolbar-btn--confirm-no"
-                onClick={() => setConfirmingClear(false)}
-                title="Cancel"
-                aria-label="Cancel clear"
-              >
-                <X size={13} />
-              </button>
-            </div>
-          ) : (
+        </div>
+        <ToolbarMore>
+          <div className="study-notes__tool-group">
             <button
               type="button"
-              className="toolbar-btn toolbar-btn--danger"
-              onClick={() => setConfirmingClear(true)}
-              title="Clear all shared notes"
-              aria-label="Clear all notes"
+              className={`toolbar-btn ${editor.isActive('heading', { level: 1 }) ? 'is-active' : ''}`}
+              onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+              title="Heading 1"
+              aria-label="Heading 1"
             >
-              <Trash2 size={15} />
+              <Heading1 size={15} />
             </button>
-          )}
-        </div>
+            <button
+              type="button"
+              className={`toolbar-btn ${editor.isActive('heading', { level: 2 }) ? 'is-active' : ''}`}
+              onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+              title="Heading 2"
+              aria-label="Heading 2"
+            >
+              <Heading2 size={15} />
+            </button>
+          </div>
 
+          <div className="study-notes__tool-group">
+            <button
+              type="button"
+              className={`toolbar-btn ${editor.isActive('bulletList') ? 'is-active' : ''}`}
+              onClick={() => editor.chain().focus().toggleBulletList().run()}
+              title="Bullet List"
+              aria-label="Bullet list"
+            >
+              <List size={15} />
+            </button>
+            <button
+              type="button"
+              className={`toolbar-btn ${editor.isActive('orderedList') ? 'is-active' : ''}`}
+              onClick={() => editor.chain().focus().toggleOrderedList().run()}
+              title="Numbered List"
+              aria-label="Numbered list"
+            >
+              <ListOrdered size={15} />
+            </button>
+            <button
+              type="button"
+              className={`toolbar-btn ${editor.isActive('blockquote') ? 'is-active' : ''}`}
+              onClick={() => editor.chain().focus().toggleBlockquote().run()}
+              title="Blockquote"
+              aria-label="Quote"
+            >
+              <Quote size={15} />
+            </button>
+          </div>
+
+            {confirmingClear ? (
+              <div className="notes-confirm-group" role="group" aria-label="Confirm clear notes">
+                <span className="notes-confirm-label text-caption">Clear notes?</span>
+                <button
+                  type="button"
+                  className="toolbar-btn toolbar-btn--confirm-yes"
+                  onClick={() => {
+                    setConfirmingClear(false);
+                    handleClearNotes();
+                  }}
+                  title="Yes, clear all notes"
+                  aria-label="Yes, clear notes"
+                >
+                  <Check size={13} />
+                </button>
+                <button
+                  type="button"
+                  className="toolbar-btn toolbar-btn--confirm-no"
+                  onClick={() => setConfirmingClear(false)}
+                  title="Cancel"
+                  aria-label="Cancel clear"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="toolbar-btn toolbar-btn--danger"
+                onClick={() => setConfirmingClear(true)}
+                title="Clear all shared notes"
+                aria-label="Clear all notes"
+              >
+                <Trash2 size={15} />
+              </button>
+            )}
+        </ToolbarMore>
         {hasEditors && (
           <div className="study-notes__presence text-caption text-accent" aria-live="polite">
             <span className="presence-dot" /> Co-editing active

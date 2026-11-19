@@ -220,3 +220,18 @@
   color: var(--color-text-tertiary);
   font-style: italic;
 }
+
+@media (max-width: 767px) {
+  .code-scratchpad__toolbar {
+    position: relative;
+    z-index: 2;
+    overflow: visible;
+    flex-wrap: wrap;
+    padding: 4px 8px;
+    gap: 4px;
+  }
+  .code-scratchpad__toolbar-left { display: contents; }
+  .code-scratchpad__toolbar-left > span { order: 2; }
+  .code-scratchpad__toolbar-right { margin-left: auto; }
+  .code-scratchpad__toolbar-right .code-action-btn { min-height: 40px; }
+}

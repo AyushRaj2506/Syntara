@@ -164,3 +164,23 @@ test('three people see active and committed whiteboard strokes, undo and refresh
     await Promise.all(contexts.map(context => context.close()));
   }
 });
+
+test('mobile editor actions fit and keep clear confirmations accessible', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 720 });
+  await seed(page);
+  for (const [tab, primary, clear] of [
+    ['Notes', 'Undo', 'Clear all notes'], ['Board', 'Undo', 'Clear board'], ['Code', 'Run code', 'Clear code'],
+  ]) {
+    await page.getByRole('navigation', { name: 'Room navigation' }).getByRole('button', { name: tab, exact: true }).click();
+    await expect(page.getByRole('button', { name: primary, exact: true })).toBeInViewport({ ratio: 1 });
+    const more = page.getByRole('button', { name: 'More', exact: true });
+    await more.click();
+    const action = page.getByRole('button', { name: clear, exact: true });
+    await expect(action).toBeInViewport({ ratio: 1 });
+    await action.click();
+    await page.getByRole('button', { name: 'Cancel clear' }).click();
+    await more.focus();
+    await more.press('Escape');
+    await expect(more).toHaveAttribute('aria-expanded', 'false');
+  }
+});

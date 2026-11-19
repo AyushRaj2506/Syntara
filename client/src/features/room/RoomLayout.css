@@ -427,3 +427,11 @@
   .room-layout[data-mobile-tab="goals"] .room-section--goals,
   .room-layout[data-mobile-tab="members"] .room-section--members { display: block; }
 }
+
+@media (prefers-reduced-motion: no-preference) {
+  .room-workspace-pane--active { animation: workspace-enter 140ms ease-out; }
+}
+@keyframes workspace-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}

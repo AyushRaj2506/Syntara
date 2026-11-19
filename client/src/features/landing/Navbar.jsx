@@ -118,6 +118,7 @@ export function Navbar({ onCreateRoom }) {
                 type="button"
                 className={`navbar__join-btn ${joinOpen ? 'navbar__join-btn--active' : ''}`}
                 onClick={toggleJoin}
+                aria-label="Join Room"
                 aria-expanded={joinOpen}
                 aria-haspopup="dialog"
                 id="nav-join-room-trigger"

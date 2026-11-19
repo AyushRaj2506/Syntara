@@ -307,7 +307,7 @@
     position: fixed;
     top: 68px;
     left: 50%;
-    transform: translateX(-50%);
+    translate: -50% 0;
     width: min(calc(100vw - 32px), 360px);
     right: auto;
   }

@@ -341,3 +341,7 @@
     grid-column: span 1;
   }
 }
+
+.live-demo-section[data-playing="false"] * {
+  animation-play-state: paused;
+}
