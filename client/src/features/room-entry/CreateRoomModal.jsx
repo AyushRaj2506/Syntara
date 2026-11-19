@@ -6,6 +6,7 @@ import { Modal } from '../../components/Modal';
 import { Input } from '../../components/Input';
 import { Select } from '../../components/Select';
 import { Button } from '../../components/Button';
+import { CopyInviteLink } from '../../components/CopyInviteLink';
 import './CreateRoomModal.css';
 
 const SUBJECTS = [
@@ -333,15 +334,18 @@ export function CreateRoomModal({ open, onClose }) {
               <div className="voucher-code-digits text-mono">
                 {createdRoom?.roomCode}
               </div>
-              <button
-                type="button"
-                className={`voucher-copy-btn ${copied ? 'voucher-copy-btn--copied' : ''}`}
-                onClick={handleCopy}
-                aria-label={copied ? 'Code copied' : 'Copy room code'}
-              >
-                {copied ? <Check size={16} /> : <Copy size={16} />}
-                <span>{copied ? 'Code Copied!' : 'Copy Code'}</span>
-              </button>
+              <div className="voucher-invite-actions">
+                <button
+                  type="button"
+                  className={`voucher-copy-btn ${copied ? 'voucher-copy-btn--copied' : ''}`}
+                  onClick={handleCopy}
+                  aria-label={copied ? 'Code copied' : 'Copy room code'}
+                >
+                  {copied ? <Check size={16} /> : <Copy size={16} />}
+                  <span>{copied ? 'Code Copied!' : 'Copy Code'}</span>
+                </button>
+                <CopyInviteLink roomCode={createdRoom.roomCode} className="voucher-copy-btn" />
+              </div>
             </div>
 
             <div className="create-room-success__perks">

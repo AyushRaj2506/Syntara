@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Avatar } from '../../../components/Avatar';
+import { roomInviteUrl } from '../../../lib/roomInvite';
 import { Badge } from '../../../components/Badge';
 import {
   Flame,
@@ -54,20 +55,8 @@ export function ParticipantList({
 
   const onlineCount = participants.filter((p) => p.status === 'connected').length;
 
-  const getInviteUrl = () => {
-    try {
-      const url = new URL(window.location.origin);
-      if (roomCode) {
-        url.searchParams.set('room', roomCode);
-      }
-      return url.toString();
-    } catch {
-      return `${window.location.origin}/?room=${encodeURIComponent(roomCode || '')}`;
-    }
-  };
-
   const handleCopyLink = () => {
-    const link = getInviteUrl();
+    const link = roomInviteUrl(roomCode);
     navigator.clipboard.writeText(link).then(() => {
       setCopiedLink(true);
       setTimeout(() => setCopiedLink(false), 2000);
@@ -268,7 +257,7 @@ export function ParticipantList({
                   </div>
                   <div className="invite-popover__link-row">
                     <code className="invite-popover__link-text">
-                      {getInviteUrl()}
+                      {roomInviteUrl(roomCode)}
                     </code>
                   </div>
                   <button

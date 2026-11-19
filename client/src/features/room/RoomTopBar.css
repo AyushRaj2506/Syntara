@@ -96,6 +96,7 @@
 /* Center: Interactive Room Code */
 .room-top-bar__center {
   display: flex;
+  gap: var(--space-1);
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
@@ -338,4 +339,6 @@
   .room-top-bar__menu-btn, .room-top-bar__drawer-btn, .room-top-bar .theme-toggle { width: 40px; height: 40px; }
   .room-top-bar__conn-status { display: flex; }
   .room-top-bar__conn-text { display: none; }
+  .room-top-bar__invite-link span { display: none; }
+  .room-top-bar__invite-link { min-width: 40px; justify-content: center; }
 }

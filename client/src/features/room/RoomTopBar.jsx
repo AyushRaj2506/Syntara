@@ -3,6 +3,7 @@ import { Copy, Check, Users, MoreHorizontal, LogOut, Clock, ShieldCheck } from '
 import { BrandMark } from '../landing/BrandMark';
 import { formatExpiry } from '../../lib/formatters';
 import { ThemeToggle } from '../../components/ThemeToggle';
+import { CopyInviteLink } from '../../components/CopyInviteLink';
 import './RoomTopBar.css';
 
 /**
@@ -86,6 +87,7 @@ export function RoomTopBar({ room, me: _me, connectionStatus, onOpenDrawer, onLe
           </span>
           {copied && <span className="room-top-bar__copied-tooltip text-caption">Copied!</span>}
         </button>
+        <CopyInviteLink roomCode={room.roomCode} className="room-top-bar__code-pill room-top-bar__invite-link" />
       </div>
 
       {/* Right: Live Presence, Status, Expiry, Theme & Menu */}
