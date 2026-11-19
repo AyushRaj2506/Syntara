@@ -112,6 +112,16 @@ test('P2P files arrive once, including empty files; solo uploads use server fall
   await expect(peer.getByRole('link', { name: 'Download direct-test.txt' })).toHaveAttribute('href', /^blob:/);
   await sendFile('empty-test.txt', Buffer.alloc(0));
   await expect(peer.getByRole('link', { name: 'Download empty-test.txt' })).toHaveCount(1, { timeout: 25000 });
+  await peer.evaluate(async () => {
+    const { socket } = await import('/src/lib/socket.js');
+    await new Promise(resolve => {
+      socket.once('connect', () => socket.emit('room:join', {
+        roomCode: location.pathname.split('/').at(-1),
+      }, resolve));
+      socket.io.engine.close();
+    });
+  });
+  await expect(peer.getByRole('link', { name: 'Download direct-test.txt' })).toHaveAttribute('href', /^blob:/);
   await peerContext.close();
   await expect(page.locator('.room-top-bar__presence-badge')).toContainText('1 studying');
   await sendFile('fallback-test.txt', Buffer.from('server content'));

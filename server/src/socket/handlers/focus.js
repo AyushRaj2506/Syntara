@@ -117,6 +117,10 @@ function completeFocusSession(io, roomId) {
   const room = roomStore.getById(roomId);
   if (!room || !room.focusSession) return;
 
+  const session = room.focusSession;
+  const remaining = session._pausedRemaining ?? Math.max(0, session.endsAt - Date.now());
+  session.elapsedSeconds = Math.max(0, Math.floor((session.durationMin * 60000 - remaining) / 1000));
+  delete session._pausedRemaining;
   room.focusSession.status = 'COMPLETED';
   room.focusSession.endsAt = undefined;
   focusTimers.delete(roomId);

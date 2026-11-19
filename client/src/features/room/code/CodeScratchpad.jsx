@@ -1,5 +1,6 @@
 import { useCollaborativeDocument } from '../../../hooks/useCollaborativeDocument';
 import * as Y from 'yjs';
+import { useToast } from '../../../hooks/useToast';
 import { SyncStatus } from '../../../components/SyncStatus';
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Copy, Check, Trash2, Code2, Play, Loader2, ChevronDown, ChevronUp, Terminal } from 'lucide-react';
@@ -89,7 +90,13 @@ function runPython(code, timeoutMs = 15000) {
       },
     });
 
-    getPyodideWorker().postMessage({ id, code });
+    try {
+      getPyodideWorker().postMessage({ id, code });
+    } catch (error) {
+      clearTimeout(timer);
+      pyodideWorkerCallbacks.delete(id);
+      resolve({ error: error.message });
+    }
   });
 }
 
@@ -169,6 +176,7 @@ function CodeEditor({ actions, doc }) {
       if (doc.getMap('settings').get('language') !== nextLanguage) doc.getMap('settings').set('language', nextLanguage);
     }, 'local');
   };
+  const { addToast } = useToast();
   const [copied, setCopied] = useState(false);
 
   // Run state
@@ -192,15 +200,20 @@ function CodeEditor({ actions, doc }) {
     if (e.key !== 'Tab') return;
     e.preventDefault();
     const start = e.target.selectionStart;
-    change({ code: code.slice(0, start) + '    ' + code.slice(e.target.selectionEnd), language });
-    requestAnimationFrame(() => { if (textareaRef.current) textareaRef.current.selectionStart = textareaRef.current.selectionEnd = start + 4; });
+    const next = e.target.value.slice(0, start) + '    ' + e.target.value.slice(e.target.selectionEnd);
+    if (next.length > e.target.maxLength) return;
+    change({ code: next, language });
+    e.target.setSelectionRange(start + 4, start + 4);
   };
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(code).then(() => {
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    });
+    } catch {
+      addToast({ message: 'Clipboard unavailable. Select the code and copy it manually.', type: 'error' });
+    }
   };
 
   const [confirmingClear, setConfirmingClear] = useState(false);
@@ -225,9 +238,9 @@ function CodeEditor({ actions, doc }) {
 
     let result;
     if (language === 'python') {
-      result = await runPython(trimmed);
+      result = await runPython(code);
     } else {
-      result = await runCpp(trimmed, actions.roomCode);
+      result = await runCpp(code, actions.roomCode);
     }
 
     setOutput(result);
@@ -343,6 +356,7 @@ function CodeEditor({ actions, doc }) {
         <textarea
           ref={textareaRef}
           className="code-scratchpad__textarea"
+          maxLength={100000}
           defaultValue={code}
           onChange={handleCodeChange}
           onKeyDown={handleKeyDown}

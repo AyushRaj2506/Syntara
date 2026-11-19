@@ -127,7 +127,7 @@ function registerRoomHandlers(io, socket) {
         socket.data.participantId = existing.participantId;
 
         const updatedRoom = roomStore.getById(roomId);
-        const publicRoom = roomStore.toPublicRoom(updatedRoom);
+        const publicRoom = roomStore.toPublicRoom(updatedRoom, existing.participantId);
         ack?.({ room: publicRoom, participantToken });
 
         // Notify others of reconnection
@@ -142,7 +142,7 @@ function registerRoomHandlers(io, socket) {
     if (socket.data.roomId === roomId && socket.data.participantId) {
       const existingP = room.participants[socket.data.participantId];
       if (existingP) {
-        const publicRoom = roomStore.toPublicRoom(roomStore.getById(roomId));
+        const publicRoom = roomStore.toPublicRoom(roomStore.getById(roomId), existingP.participantId);
         return ack?.({ room: publicRoom, participantToken: existingP.token });
       }
     }

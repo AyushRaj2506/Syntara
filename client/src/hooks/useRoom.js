@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { socket } from '../lib/socket';
-import { useToast } from '../components/Toast';
+import { useToast } from './useToast';
 let pendingLeave;
 
 /**
@@ -78,7 +78,13 @@ export function useRoom(roomCode, displayName) {
           sessionStorage.setItem(tokenKey, participantToken);
         }
         setRoom(roomData);
-        setChatMessages(roomData.messages ?? []);
+        setChatMessages(previous => {
+          const history = roomData.messages ?? [];
+          const ids = new Set(history.map(message => message.id));
+          const local = previous.filter(message => !ids.has(message.id) &&
+            (message.file?.isBlob || message.delivery === 'failed' || message.delivery === 'pending'));
+          return [...history, ...local].sort((a, b) => a.createdAt - b.createdAt).slice(-500);
+        });
         setGoals(roomData.goals ?? []);
         setFocusSession(roomData.focusSession ?? null);
         setQuizState(roomData.quizState ?? null);

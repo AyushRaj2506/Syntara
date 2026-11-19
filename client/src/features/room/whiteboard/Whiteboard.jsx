@@ -219,21 +219,14 @@ export function Whiteboard({ initialStrokes = [], participantId, actions }) {
    *
    * Committed strokes (done=true) flow: server → useRoom → initialStrokes → strokesRef
    */
-  const prevStrokesLengthRef = useRef(-1);
   useEffect(() => {
     if (!initialStrokes) return;
-    const next = initialStrokes.length;
-
-    // Sync strokesRef on: first mount, undo/clear (length decreases), or new commits
-    {
-      strokesRef.current = [...initialStrokes];
-      setHasStrokes(initialStrokes.length > 0);
-      // Use rAF to avoid drawing to a 0x0 canvas when the pane is first revealed
-      requestAnimationFrame(() => {
-        handleResize(); // Ensures canvas has correct dimensions before redrawing
-      });
-    }
-    prevStrokesLengthRef.current = next;
+    strokesRef.current = [...initialStrokes];
+    const frame = requestAnimationFrame(() => {
+      setHasStrokes(strokesRef.current.length > 0 || Boolean(activeStrokeRef.current));
+      handleResize();
+    });
+    return () => cancelAnimationFrame(frame);
   }, [initialStrokes, handleResize]);
 
   // Remote in-flight strokes (live preview while a remote user is still drawing)
@@ -258,6 +251,7 @@ export function Whiteboard({ initialStrokes = [], participantId, actions }) {
     };
 
     const handleRemoteClear = () => {
+      undoStackRef.current = [];
       // useRoom already clears whiteboardState; we just clear in-flight
       remoteInFlightRef.current = {};
       redrawCanvas();
@@ -294,6 +288,7 @@ export function Whiteboard({ initialStrokes = [], participantId, actions }) {
   };
 
   const handlePointerDown = (e) => {
+    if (!e.isPrimary || e.button !== 0 || activeStrokeRef.current) return;
     e.target.setPointerCapture(e.pointerId);
     const pt = getNormalizedPoint(e);
     const strokeId = crypto.randomUUID();
@@ -328,7 +323,7 @@ export function Whiteboard({ initialStrokes = [], participantId, actions }) {
   };
 
   const handlePointerMove = (e) => {
-    if (!activeStrokeRef.current || !lastPointRef.current) return;
+    if (!e.isPrimary || !activeStrokeRef.current || !lastPointRef.current) return;
     const pt = getNormalizedPoint(e);
 
     drawSegment(lastPointRef.current, pt, activeStrokeRef.current.color, activeStrokeRef.current.size);
@@ -351,7 +346,7 @@ export function Whiteboard({ initialStrokes = [], participantId, actions }) {
   };
 
   const handlePointerUp = (e) => {
-    if (!activeStrokeRef.current) return;
+    if (!e.isPrimary || !activeStrokeRef.current) return;
     const pt = getNormalizedPoint(e);
     if (lastPointRef.current) {
       drawSegment(lastPointRef.current, pt, activeStrokeRef.current.color, activeStrokeRef.current.size);

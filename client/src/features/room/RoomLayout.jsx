@@ -12,7 +12,7 @@ import { FocusTimer } from './focus/FocusTimer';
 import { GoalList } from './goals/GoalList';
 import { LiveActivity } from './activity/LiveActivity';
 import { Quiz } from './quiz/Quiz';
-import { useToast } from '../../components/Toast';
+import { useToast } from '../../hooks/useToast';
 import { useConnectionState } from '../../hooks/useConnectionState';
 import './RoomLayout.css';
 
@@ -47,33 +47,35 @@ export function RoomLayout() {
   const [centerTab, setCenterTab] = useState('notes');
 
   const isChatMode = room?.type === 'CHAT';
-  const [mobileTab, setMobileTab] = useState(() => (isChatMode ? 'chat' : 'notes'));
+  const [chosenTab, setMobileTab] = useState(null);
+  const mobileTab = chosenTab ?? (isChatMode ? 'chat' : 'notes');
 
   // Tablet drawer
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   // Unread chat count
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [lastReadCount, setLastReadCount] = useState(0);
-
-  useEffect(() => {
-    if (isChatMode) {
-      setMobileTab('chat');
-    }
-  }, [isChatMode]);
+  const [lastReadId, setLastReadId] = useState(null);
+  const latestId = chatMessages.at(-1)?.id;
+  const unreadCount = mobileTab === 'chat' ? 0 :
+    chatMessages.length - 1 - chatMessages.findIndex(message => message.id === lastReadId);
+  const markChatRead = () => setLastReadId(latestId);
+  const selectTab = id => {
+    if (mobileTab === 'chat' || id === 'chat') markChatRead();
+    setMobileTab(id);
+  };
 
   const hasConnectedOnceRef = useRef(false);
 
   // Connection status toasts
   useEffect(() => {
-    if (connectionStatus === 'connected' && room) {
+    if (connectionStatus === 'connected' && room?.roomId) {
       if (hasConnectedOnceRef.current) {
         addToast({ message: 'Connection restored', type: 'success' });
       } else {
         hasConnectedOnceRef.current = true;
       }
     }
-  }, [connectionStatus]); // eslint-disable-line
+  }, [connectionStatus, room?.roomId, addToast]);
 
   // Expiry warning (5 min - Study Room only)
   useEffect(() => {
@@ -86,18 +88,6 @@ export function RoomLayout() {
       return () => clearTimeout(t);
     }
   }, [room?.expiresAt, isChatMode]); // eslint-disable-line
-
-  // Unread chat counter
-  useEffect(() => {
-    if (mobileTab !== 'chat') {
-      setUnreadCount(Math.max(0, chatMessages.length - lastReadCount));
-    }
-  }, [chatMessages.length, mobileTab, lastReadCount]);
-
-  const markChatRead = () => {
-    setLastReadCount(chatMessages.length);
-    setUnreadCount(0);
-  };
 
   // Join error state (ROOM_NOT_FOUND, ROOM_EXPIRED, ROOM_FULL, etc.)
   // This replaces the infinite loading spinner that was the previous behavior.
@@ -176,7 +166,7 @@ export function RoomLayout() {
   return (
     <div className={`room-layout ${isChatMode ? 'room-layout--chat-room' : ''} ${drawerOpen ? 'room-layout--drawer' : ''}`} data-mobile-tab={activeTab}>
       <RoomTopBar room={room} me={me} connectionStatus={connectionStatus}
-        onOpenDrawer={() => { setMobileTab('members'); setDrawerOpen(v => !v); }}
+        onOpenDrawer={() => { selectTab('members'); setDrawerOpen(v => !v); }}
         onLeave={() => { actions.leaveRoom(); navigate('/'); }} />
       <div className={`room-layout__body ${isChatMode ? 'room-layout__body--chat-only' : ''}`}>
         <aside className="room-layout__left" aria-label="Room tools">
@@ -200,7 +190,7 @@ export function RoomLayout() {
               {tools.map(({ id, label, icon: Icon }) => <button key={id} role="tab" aria-selected={effectiveCenterTab === id}
                 className={`room-layout__tab ${effectiveCenterTab === id ? 'room-layout__tab--active' : ''}`}
                 disabled={quizActive && id !== 'quiz'}
-                onClick={() => { setCenterTab(id); setMobileTab(id); }}><Icon size={15} />{label}</button>)}
+                onClick={() => { setCenterTab(id); selectTab(id); }}><Icon size={15} />{label}</button>)}
             </div>
           </div>
           <div className="room-layout__workspace">
@@ -209,7 +199,7 @@ export function RoomLayout() {
               {id === 'notes' && <StudyNotes initialContent={room.sharedNotes} initialRevision={room.notesRevision || 0} actions={actions} />}
               {id === 'whiteboard' && <Whiteboard initialStrokes={room.whiteboardState} participantId={me?.participantId} actions={actions} />}
               {id === 'code' && <CodeScratchpad initialCodeState={room.codeState} actions={actions} />}
-              {id === 'quiz' && <Quiz quizState={quizState} meId={me?.participantId} isHost={isHost} actions={actions} participants={participants} />}
+              {id === 'quiz' && <Quiz key={quizState ? quizState.quizId + '/' + quizState.currentIndex : 'draft'} quizState={quizState} meId={me?.participantId} isHost={isHost} actions={actions} participants={participants} />}
             </div>)}
           </div>
         </main>}
@@ -221,8 +211,9 @@ export function RoomLayout() {
       <nav className="mobile-tab-bar" aria-label="Room navigation">
         {tabs.map(({ id, label, icon: Icon }) => <button key={id}
           className={`mobile-tab-bar__btn ${activeTab === id ? 'mobile-tab-bar__btn--active' : ''}`}
+          disabled={quizActive && id !== 'quiz'}
           aria-current={activeTab === id ? 'page' : undefined}
-          onClick={() => { setMobileTab(id); if (tools.some(t => t.id === id)) setCenterTab(id); if (id === 'chat') markChatRead(); }}>
+          onClick={() => { selectTab(id); if (tools.some(t => t.id === id)) setCenterTab(id); }}>
           <Icon size={18} /><span className="mobile-tab-bar__label">{label}</span>
           {id === 'chat' && unreadCount > 0 && <span className="mobile-tab-bar__badge">{Math.min(99, unreadCount)}</span>}
         </button>)}

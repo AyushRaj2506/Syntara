@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import * as Y from 'yjs';
 import { socket } from '../lib/socket';
+const EMPTY_UPDATE = Y.mergeUpdates([]);
 const encode = bytes => btoa(Array.from(bytes, byte => String.fromCharCode(byte)).join(''));
 const decode = value => Uint8Array.from(atob(value), byte => byte.charCodeAt(0));
 
@@ -18,17 +19,21 @@ export function useCollaborativeDocument(kind, roomCode) {
     const persist = () => { try { sessionStorage.setItem(key, encode(Y.encodeStateAsUpdate(doc))); } catch { /* Document stays in memory. */ } };
     const sync = () => {
       clearTimeout(timer);
+      timer = undefined;
       if (stopped || sending) return;
       if (!socket.connected) { setStatus('Offline — edits saved on this device'); return; }
-      sending = true; dirty = false;
+      // On a fresh mount, learn the server vector before uploading cached history.
+      const needsVector = !serverVector;
+      const update = needsVector ? EMPTY_UPDATE : Y.encodeStateAsUpdate(doc, serverVector);
+      sending = true; dirty = needsVector;
       setStatus('Syncing…');
-      socket.timeout(10000).emit('document:sync', { kind, update: encode(Y.encodeStateAsUpdate(doc, serverVector)), stateVector: encode(Y.encodeStateVector(doc)) }, (err, response) => {
+      socket.timeout(10000).emit('document:sync', { kind, update: encode(update), stateVector: encode(Y.encodeStateVector(doc)) }, (err, response) => {
         sending = false;
         if (stopped) return;
         if (err || response?.error) {
           dirty = true;
           setStatus(response?.error || 'Connection lost — retrying…');
-          timer = setTimeout(sync, 2000);
+          if (err || response?.error === 'Join the room to sync.') timer = setTimeout(sync, 2000);
           return;
         }
         try { Y.applyUpdate(doc, decode(response.update), 'remote'); serverVector = decode(response.stateVector); }
@@ -42,11 +47,11 @@ export function useCollaborativeDocument(kind, roomCode) {
       persist();
       if (origin === 'remote') return;
       dirty = true; setStatus(socket.connected ? 'Syncing…' : 'Offline — edits saved on this device');
-      clearTimeout(timer); timer = setTimeout(sync, 50);
+      if (!sending && !timer) timer = setTimeout(sync, 50);
     };
     const onRemote = payload => {
       if (payload.kind !== kind) return;
-      try { Y.applyUpdate(doc, decode(payload.update), 'remote'); } catch { /* Retry full sync. */ }
+      try { Y.applyUpdate(doc, decode(payload.update), 'remote'); } catch { sync(); }
     };
     const onDisconnect = () => setStatus('Offline — edits saved on this device');
     doc.on('update', onUpdate);

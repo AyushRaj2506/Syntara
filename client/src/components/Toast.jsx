@@ -1,15 +1,7 @@
-import { createContext, useContext, useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { X, CheckCircle, AlertCircle, Info } from 'lucide-react';
+import { ToastContext } from '../hooks/useToast';
 import './Toast.css';
-
-/** @type {React.Context<{addToast: (toast: object) => void}>} */
-const ToastContext = createContext(null);
-
-export function useToast() {
-  const ctx = useContext(ToastContext);
-  if (!ctx) throw new Error('useToast must be used within ToastProvider');
-  return ctx;
-}
 
 /**
  * @param {{ children: React.ReactNode }} props

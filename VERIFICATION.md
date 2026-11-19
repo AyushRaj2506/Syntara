@@ -29,4 +29,4 @@ The server keeps rooms in memory. Deploy a single backend instance; restarts end
 
 Python needs an initial Pyodide runtime download and then executes in a browser worker. C++ runs in Compiler Explorer (GCC 13.2/C++20), with Wandbox as fallback when the primary service is unavailable. Source code is sent to these third-party compiler services on Run. Automated tests do not submit code to that third-party service.
 
-The release includes 8 backend regression tests, 5 browser scenarios, and a GitHub Actions workflow. The backend health endpoint reports RENDER_GIT_COMMIT so deployments can be checked against the GitHub commit.
+The release includes 13 backend tests, 5 browser scenarios, and a GitHub Actions workflow. The backend health endpoint reports RENDER_GIT_COMMIT so deployments can be checked against the GitHub commit.

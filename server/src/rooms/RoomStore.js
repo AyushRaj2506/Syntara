@@ -115,14 +115,14 @@ class RoomStore {
    * Returns a safe public view of the room (participant tokens stripped).
    * @param {Room} room
    */
-  toPublicRoom(room) {
+  toPublicRoom(room, participantId) {
     const publicParticipants = {};
     for (const [id, p] of Object.entries(room.participants)) {
       const { token: _t, ...pub } = p;
       publicParticipants[id] = pub;
     }
     const { uploadReserved, ...view } = room;
-    return { ...view, participants: publicParticipants, quizState: require('../services/quizView').publicQuiz(room.quizState) };
+    return { ...view, participants: publicParticipants, quizState: require('../services/quizView').publicQuiz(room.quizState, participantId) };
   }
 
   /** @param {string} roomId @returns {number} */

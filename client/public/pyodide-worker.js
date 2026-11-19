@@ -19,7 +19,11 @@ async function loadPyodideIfNeeded() {
     return pyodide;
   })();
 
-  return pyodideLoading;
+  try {
+    return await pyodideLoading;
+  } finally {
+    pyodideLoading = null;
+  }
 }
 
 self.onmessage = async (e) => {

@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { io: client } = require('../../client/node_modules/socket.io-client');
 const { Server } = require('socket.io');
+process.env.MAX_ROOMS_PER_IP_PER_HOUR = '100';
 const { app, UPLOAD_DIR } = require('../src/app');
 const { initSocketServer } = require('../src/socket');
 const { roomStore } = require('../src/rooms/RoomStore');
@@ -104,7 +105,9 @@ test('focus pauses, resumes, completes, then resets', async () => {
   event = once(host, 'focus:pause'); host.emit('focus:pause');
   assert.equal((await event).focusSession.status, 'PAUSED');
   event = once(host, 'focus:resume'); host.emit('focus:resume'); assert.equal((await event).focusSession.status, 'FOCUSING');
-  event = once(host, 'focus:end'); host.emit('focus:end'); assert.equal((await event).focusSession.status, 'COMPLETED');
+  event = once(host, 'focus:end'); host.emit('focus:end'); const completed = (await event).focusSession;
+  assert.equal(completed.status, 'COMPLETED');
+  assert.ok(completed.elapsedSeconds < 5);
   event = once(host, 'focus:end'); host.emit('focus:end'); assert.equal((await event).focusSession, null);
 });
 test('quiz hides answer keys, completes publicly, and retains reconnect results', async () => {
@@ -117,6 +120,21 @@ test('quiz hides answer keys, completes publicly, and retains reconnect results'
   const snapshot = roomStore.toPublicRoom(roomStore.getById(room.roomId));
   assert.equal(snapshot.quizState._leaderboard[0].score, 100);
   assert.equal(snapshot.quizState.answers, undefined);
+});
+test('rejoining a live quiz restores only the current participant selection', async () => {
+  const host = await connect();
+  const { room, participantToken } = await create(host);
+  const peer = await connect();
+  await emit(peer, 'room:join', { roomCode: room.roomCode });
+  const started = once(host, 'quiz:start');
+  host.emit('quiz:start', { questions: [{ questionId: 'one', text: 'Which?', options: ['A', 'B', 'C', 'D'], correctIndex: 1, timerSec: 30 }] });
+  await started;
+  host.emit('quiz:submit', { questionIndex: 0, optionIndex: 0 });
+  const mine = await emit(host, 'room:join', { roomCode: room.roomCode, participantToken });
+  const other = await emit(peer, 'room:join', { roomCode: room.roomCode });
+  assert.equal(mine.room.quizState.myOption, 0);
+  assert.equal(other.room.quizState.myOption, undefined);
+  assert.equal(mine.room.quizState.questions[0].correctIndex, undefined);
 });
 test('collaborative code merges independent changes and rejects invalid updates', async () => {
   const host = await connect(); const { room } = await create(host);

@@ -32,21 +32,14 @@ export function Modal({
   }, [onClose]);
 
   const [isRendered, setIsRendered] = useState(open);
-  const [isClosing, setIsClosing] = useState(false);
+  if (open && !isRendered) setIsRendered(true);
+  const isClosing = isRendered && !open;
 
   useEffect(() => {
-    if (open) {
-      setIsRendered(true);
-      setIsClosing(false);
-    } else if (isRendered) {
-      setIsClosing(true);
-      const timer = setTimeout(() => {
-        setIsRendered(false);
-        setIsClosing(false);
-      }, 200);
-      return () => clearTimeout(timer);
-    }
-  }, [open, isRendered]);
+    if (!isClosing) return;
+    const timer = setTimeout(() => setIsRendered(false), 200);
+    return () => clearTimeout(timer);
+  }, [isClosing]);
 
   const handleClose = useCallback(() => {
     if (isClosing) return;
@@ -83,9 +76,10 @@ export function Modal({
 
   useEffect(() => {
     if (open) {
+      const previousOverflow = document.body.style.overflow;
       lastFocusedRef.current = document.activeElement;
 
-      requestAnimationFrame(() => {
+      const frame = requestAnimationFrame(() => {
         if (panelRef.current && !panelRef.current.contains(document.activeElement)) {
           const firstInput = panelRef.current.querySelector('input:not(:disabled), textarea:not(:disabled)');
           const firstFocusable = firstInput || panelRef.current.querySelector(
@@ -97,17 +91,13 @@ export function Modal({
 
       document.addEventListener('keydown', trapFocus);
       document.body.style.overflow = 'hidden';
-    } else {
-      document.removeEventListener('keydown', trapFocus);
-      document.body.style.overflow = '';
-      if (lastFocusedRef.current && typeof lastFocusedRef.current.focus === 'function') {
-        lastFocusedRef.current.focus();
-      }
+      return () => {
+        cancelAnimationFrame(frame);
+        document.removeEventListener('keydown', trapFocus);
+        document.body.style.overflow = previousOverflow;
+        lastFocusedRef.current?.focus();
+      };
     }
-    return () => {
-      document.removeEventListener('keydown', trapFocus);
-      document.body.style.overflow = '';
-    };
   }, [open, trapFocus]);
 
   if (!isRendered) return null;

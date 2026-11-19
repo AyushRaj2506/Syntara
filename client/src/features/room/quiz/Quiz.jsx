@@ -14,7 +14,8 @@ import './Quiz.css';
  * }} props
  */
 export function Quiz({ quizState, meId: _meId, isHost, actions, participants: _participants }) {
-  const [selectedOption, setSelectedOption] = useState(null);
+  const [localOption, setSelectedOption] = useState(null);
+  const selectedOption = quizState?.myOption ?? localOption;
   const [creating, setCreating] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
 
@@ -24,12 +25,6 @@ export function Quiz({ quizState, meId: _meId, isHost, actions, participants: _p
   const currentQuestion = questions[currentIndex];
   const results = quizState?._results;
   const leaderboard = quizState?._leaderboard;
-
-  // Reset local option on question change
-  useEffect(() => {
-    setSelectedOption(null);
-    setCreating(false);
-  }, [currentIndex, quizState?.quizId]);
 
   // Question timer countdown
   useEffect(() => {

@@ -57,7 +57,8 @@ export function FocusTimer({ focusSession, isHost, actions, fullScreen = false }
 
   // Calculate progress percentage
   const totalSeconds = (focusSession?.durationMin || selectedDuration) * 60;
-  const elapsedSeconds = Math.max(0, totalSeconds - secondsLeft);
+  const displayedSeconds = status === 'PAUSED' ? Math.ceil((focusSession._pausedRemaining ?? 0) / 1000) : secondsLeft;
+  const elapsedSeconds = Math.max(0, totalSeconds - displayedSeconds);
   const progressPercent = totalSeconds > 0 ? Math.min(100, Math.round((elapsedSeconds / totalSeconds) * 100)) : 0;
 
   return (
@@ -121,7 +122,7 @@ export function FocusTimer({ focusSession, isHost, actions, fullScreen = false }
 
           <div className="focus-card__timer-display">
             <div className="focus-timer__digits text-display-lg font-mono font-bold" aria-live="polite">
-              {formatCountdown(status === 'PAUSED' ? Math.ceil((focusSession?._pausedRemaining || 0) / 1000) : secondsLeft)}
+              {formatCountdown(displayedSeconds)}
             </div>
             <span className="focus-timer__subtitle text-caption text-secondary">
               {status === 'PAUSED' ? 'Session paused' : 'Deep work in progress'}
@@ -205,7 +206,7 @@ export function FocusTimer({ focusSession, isHost, actions, fullScreen = false }
             <h4 className="text-body-sm font-semibold text-primary">Focus Sprint Complete!</h4>
           </div>
           <p className="text-caption text-secondary">
-            {focusSession?.durationMin}m completed with {focusSession?.participantsAtStart || 1} peer(s).
+            {formatCountdown(focusSession.elapsedSeconds ?? totalSeconds)} focused with {focusSession?.participantsAtStart || 1} peer(s).
           </p>
           {isHost && (
             <button type="button" className="focus-reset-btn text-caption text-accent" onClick={handleEnd}>

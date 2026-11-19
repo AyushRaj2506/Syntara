@@ -88,6 +88,7 @@ export function Chat({
   roomName: _roomName,
   isChatRoom = false,
 }) {
+  "use no memo"; // The virtualizer returns mutable measurement methods.
   const [text, setText] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
@@ -100,7 +101,7 @@ export function Chat({
 
   const listRef = useRef(null);
   const inputRef = useRef(null);
-  const prevMessagesCountRef = useRef(messages.length);
+  const lastMessageRef = useRef(messages.at(-1)?.id);
   const typingTimerRef = useRef(null);
 
   // WebRTC P2P DataChannel file transfer hook
@@ -180,16 +181,19 @@ export function Chat({
 
   // Auto-scroll or unread counter
   useEffect(() => {
-    const isNewMessage = messages.length > prevMessagesCountRef.current;
+    const latestId = messages.at(-1)?.id;
+    const previousId = lastMessageRef.current;
+    const added = messages.length - 1 - messages.findIndex(message => message.id === previousId);
+    const isNewMessage = latestId && previousId !== latestId;
     if (isNewMessage) {
       if (atBottom && listRef.current) {
         listRef.current.scrollTop = listRef.current.scrollHeight;
       } else {
-        setUnreadNewCount((prev) => prev + (messages.length - prevMessagesCountRef.current));
+        setUnreadNewCount((prev) => prev + added);
       }
     }
-    prevMessagesCountRef.current = messages.length;
-  }, [messages.length, atBottom]);
+    lastMessageRef.current = latestId;
+  }, [messages, atBottom]);
 
   const handleScroll = () => {
     if (!listRef.current) return;
