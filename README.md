@@ -12,16 +12,15 @@ Syntara is a temporary study room you open with a link or room code. Two people 
 2. Choose **Copy Link** on the room pass and send it to a friend. They can also enter the room code using **Join Room**.
 3. Open **Notes** and type in different paragraphs together. Switch to **Board** to draw a diagram or **Code** to try the example. The host can start a focus sprint or quiz for everyone.
 
-<details>
-<summary>See the homepage and mobile code editor</summary>
+### Homepage
 
 ![Syntara homepage with the Create a Room and Join Room controls](docs/images/landing.png)
+
+### Mobile code editor
 
 On phones, the bottom navigation switches tools. **Run** stays visible in the code editor, with **Copy** and **Clear** under **More**.
 
 <img src="docs/images/mobile-code.png" width="290" alt="Mobile code editor showing a Python binary search example, the Run and More buttons, and room navigation">
-
-</details>
 
 ## System architecture
 
