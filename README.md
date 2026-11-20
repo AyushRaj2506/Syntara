@@ -1,237 +1,93 @@
 # Syntara
 
-**Syntara** is a real-time, privacy-first virtual study and collaboration platform designed for students, developers, and remote teams. It enables instant, ephemeral study groups and chat rooms with zero account friction, WebRTC peer-to-peer file sharing, synchronized collaborative tools (whiteboard, rich-text study notes, multi-language code scratchpad, Pomodoro sprint timers, and interactive group quizzes), and low-latency messaging.
+Syntara is a temporary study room you open with a link or room code. Two people can edit the same notes, sketch on the same whiteboard, and run code while they exchange messages. Anyone can join with a display name.
 
----
+**[Open Syntara](https://syntara-hism.onrender.com/)** · [System architecture](#system-architecture) · [Run locally](#run-locally) · [Tests](#tests)
 
-## Key Features
+![A study room with two participants working on binary search, shared notes in the center, a focus timer and goals on the left, and chat on the right](docs/images/study-room.png)
 
-- **Instant Ephemeral Rooms**: Create or join study spaces with a subject-prefixed room code (for example `SYN-ABCDE`). No sign-up required.
-- **Dedicated Modes**:
-  - **Chat Room Mode**: Streamlined two-column real-time messaging workspace with 12-hour local clock timestamps, smart message grouping, live presence indicators, and session statistics.
-  - **Study Room Mode**: Three-column collaborative study hub with synchronized focus tools.
-- **Direct P2P File Sharing**: WebRTC DataChannel file transfer with delivery receipts and authenticated temporary server fallback, complete with drag & drop, file type detection, and inline image/document previews.
-- **Synchronized Study Tools**:
-  - **Collaborative Whiteboard**: Real-time canvas with smooth pen, eraser, color palette, stroke sizing, and global clear/undo sync.
-  - **Live Study Notes**: Synchronized rich-text editor with headings, lists, code blocks, editing presence, and simultaneous collaborative editing. Collaborative document snapshots stay in browser session storage for reconnect recovery.
-  - **Multi-Language Code Scratchpad**: Shared Python and C++ editor with simultaneous collaborative editing. Python runs in a browser worker after downloading Pyodide; C++ uses the server-side Compiler Explorer proxy with Wandbox fallback.
-  - **Focus Sprint Timer**: Synchronized focus timer with configurable sprints, pause/resume, and explicit reset.
-  - **Interactive Group Quizzes**: Create multiple-choice quizzes with live timers, synchronized question progression, and instant leaderboards.
-- **Syntara Design System**: Custom theme engine supporting dark and warm light modes with high-contrast UI, custom typography, and responsive zoom scaling (67%–125%).
+## Try a room
 
----
+1. Choose **Create Room** on the homepage. Pick **Study Room** for the full workspace or **Chat Room** for messages and file sharing.
+2. Choose **Copy Link** on the room pass and send it to a friend. They can also enter the room code using **Join Room**.
+3. Open **Notes** and type in different paragraphs together. Switch to **Board** to draw a diagram or **Code** to try the example. The host can start a focus sprint or quiz for everyone.
 
-## Tech Stack
+<details>
+<summary>See the homepage and mobile code editor</summary>
 
-### Frontend (`client/`)
-- **Core**: React 19, React Router v7
-- **Build Tool**: Vite 8
-- **Real-Time Client**: Socket.IO Client v4
-- **P2P File Transfer**: Native WebRTC `RTCPeerConnection` & `RTCDataChannel`
-- **Rich Text Editor**: TipTap v3 (ProseMirror core)
-- **Virtualization**: TanStack Virtual v3
-- **Icons**: Lucide React
-- **Styling**: Vanilla CSS with custom HSL token architecture and glassmorphic elevations
+![Syntara homepage with the Create a Room and Join Room controls](docs/images/landing.png)
 
-### Backend (`server/`)
-- **Runtime**: Node.js
-- **Framework**: Express v5
-- **WebSockets / Signaling**: Socket.IO v4
-- **Validation**: Zod
-- **File Uploads (Fallback)**: Multer
-- **State Management**: In-memory ephemeral `RoomStore` with automatic inactive room sweeps and rate limiting
+On phones, the bottom navigation switches tools. **Run** stays visible in the code editor, with **Copy** and **Clear** under **More**.
 
----
+<img src="docs/images/mobile-code.png" width="290" alt="Mobile code editor showing a Python binary search example, the Run and More buttons, and room navigation">
 
-## Architecture
+</details>
 
-```text
-+--------------------------------------------------------+
-¦                   Client (Browser)                     ¦
-¦  - React 19 UI + Theme System                          ¦
-¦  - useRoom (Socket state orchestrator)                 ¦
-¦  - useWebRTCFileTransfer (P2P DataChannel mesh)        ¦
-+--------------------------------------------?-----------+
-             ¦                               ¦
-    WebSocket Signaling             P2P DataChannel (Mesh)
-    & Room State Sync               Direct File Transfers
-             ¦                               ¦
-+------------?-------------------------------------------+
-¦              Syntara Server (Node.js/Express)          ¦
-¦  - Socket.IO Real-time Gateways                        ¦
-¦  - In-Memory RoomStore & Session Lifecycle Manager     ¦
-¦  - Rate Limiting & Input Sanitization (Zod)            ¦
-+--------------------------------------------------------+
+## System architecture
+
+```mermaid
+flowchart TB
+    A["Browser A · React, TipTap, Yjs"]
+    B["Browser B · React, TipTap, Yjs"]
+    A <-->|Direct files over WebRTC| B
+    A <-->|Room events and signaling| S["Socket.IO on Node.js"]
+    B <--> S
+    S <--> R["In-memory room state and Yjs documents"]
+    A -->|File fallback or C++ run| H["Express HTTP API"]
+    H --> F["Temporary room uploads"]
+    H --> C["Compiler Explorer / Wandbox"]
+    A -->|Run Python| P["Pyodide worker in browser A"]
 ```
 
----
+Both browsers can use the HTTP API and run Python locally. The diagram shows those paths once for readability.
 
-## Project Structure
+- **Notes and code.** Each editor updates a local Yjs document as you type. Clients exchange changes with the server over Socket.IO. State vectors tell each side which edits it is missing, so concurrent typing and edits made during a brief disconnect can merge. The browser caches document snapshots in session storage.
+- **Drawing and session tools.** Peers see strokes while the pointer is down. The server keeps completed strokes for participants who join later. Undo removes the artist’s own last stroke. The same room connection carries chat, presence, shared goals, focus deadlines, and quiz results.
+- **Files and code execution.** WebRTC sends file chunks directly to connected peers and checks delivery receipts. If direct delivery is unavailable, the sender can fall back to an authenticated temporary upload. Python downloads Pyodide on first use and runs in a browser worker. Running C++ sends the source to Compiler Explorer through the backend, with Wandbox as a fallback.
 
-```text
-Syntara/
-+-- client/                     # Vite + React Frontend
-¦   +-- src/
-¦   ¦   +-- components/         # Reusable UI primitives (Avatar, Button, Modal, etc.)
-¦   ¦   +-- features/
-¦   ¦   ¦   +-- landing/        # Marketing landing page components & previews
-¦   ¦   ¦   +-- room-entry/     # Room creation and joining modal dialogs
-¦   ¦   ¦   +-- room/           # Study & Chat room workspaces
-¦   ¦   ¦       +-- activity/   # Real-time room activity feed
-¦   ¦   ¦       +-- chat/       # Chat timeline, composer, & file-sharing modal
-¦   ¦   ¦       +-- code/       # Synchronized code scratchpad
-¦   ¦   ¦       +-- focus/      # Pomodoro focus sprint timer
-¦   ¦   ¦       +-- goals/      # Shared session goals checklist
-¦   ¦   ¦       +-- notes/      # Collaborative TipTap study notes
-¦   ¦   ¦       +-- participants/# Participant list, quick actions, & session stats
-¦   ¦   ¦       +-- quiz/       # Live interactive group quiz
-¦   ¦   ¦       +-- whiteboard/ # HTML5 canvas synchronized whiteboard
-¦   ¦   +-- hooks/              # Custom React hooks (useRoom, useWebRTCFileTransfer, etc.)
-¦   ¦   +-- lib/                # Socket.io client, formatters, and utilities
-¦   ¦   +-- pages/              # LandingPage, RoomPage, NotFoundPage
-¦   ¦   +-- styles/             # Global CSS tokens, resets, and variables
-¦   +-- .env.example
-¦   +-- index.html
-¦   +-- package.json
-¦   +-- vite.config.js
-+-- server/                     # Node.js + Express Backend
-¦   +-- src/
-¦   ¦   +-- rooms/              # Ephemeral RoomStore & cleanup routines
-¦   ¦   +-- services/           # Zod schema validation & room utilities
-¦   ¦   +-- socket/             # Socket.IO event handlers (chat, whiteboard, notes, etc.)
-¦   ¦   +-- app.js              # Express application setup & middleware
-¦   ¦   +-- server.js           # HTTP & Socket.IO server entry point
-¦   +-- .env.example
-¦   +-- package.json
-+-- .gitignore
-+-- README.md
-```
+**Room lifetime.** The backend holds active rooms in memory. A server restart ends those sessions. An unexpected disconnect has a two-minute reconnect window by default. When a room expires or its last participant explicitly leaves, the server removes the room and its temporary uploads.
 
----
+The React 19 frontend is built with Vite. Start with the [room UI](client/src/features/room) and [collaboration hooks](client/src/hooks) to trace a browser action. On the backend, the [Socket.IO handlers](server/src/socket/handlers) update the [room store](server/src/rooms), while the [Express API](server/src/app.js) handles file transfers and code execution requests.
 
-## Getting Started
+## Run locally
 
-### Prerequisites
-- **Node.js**: v22.12.0 or higher
-- **npm**: v9.0.0 or higher
+Use Node.js **22.12 or later** and npm. The default configuration works on localhost.
 
-### 1. Clone the Repository
-```bash
+```sh
 git clone https://github.com/AyushRaj2506/Syntara.git
 cd Syntara
+npm ci --prefix server
+npm ci --prefix client
 ```
 
-### 2. Configure Environment Variables
+From the repository root, start the backend in one terminal and Vite in a second.
 
-**Client Configuration**:
-```bash
-cp client/.env.example client/.env
-```
-Ensure `VITE_SERVER_URL` points to your backend (default `http://localhost:4000`).
+| Terminal | Command | Open |
+| --- | --- | --- |
+| Backend | `npm run dev --prefix server` | [Health check](http://localhost:4000/health) |
+| Frontend | `npm run dev --prefix client` | [Local app](http://localhost:5173) |
 
-**Server Configuration**:
-```bash
-cp server/.env.example server/.env
-```
-Ensure `CLIENT_ORIGIN` points to your frontend (default `http://localhost:5173`).
+To test with a second participant on one machine, open the invite link in a private window and enter a different display name.
 
-### 3. Install Dependencies
+## Tests
 
-```bash
-# Install backend dependencies
-cd server
-npm install
+Run these commands from the repository root after installing both packages. The browser suite uses Google Chrome locally and starts its own servers on ports 4011 and 5175.
 
-# Install frontend dependencies
-cd ../client
-npm install
+```sh
+npm test --prefix server
+npm run lint --prefix client
+npm run build --prefix client
+npm run test:e2e --prefix client
 ```
 
-### 4. Run in Development Mode
+The browser tests exercise three-person simultaneous editing and drawing, reconnect recovery, invite links, file delivery, and mobile controls. CI runs the suite with Playwright Chromium. [Browser tests](client/tests) · [Backend tests](server/test) · [CI workflow](.github/workflows/ci.yml)
 
-**Terminal 1 (Backend Server)**:
-```bash
-cd server
-npm run dev
-# Server runs at http://localhost:4000
-```
+## Deployment and configuration
 
-**Terminal 2 (Frontend Client)**:
-```bash
-cd client
-npm run dev
-# Client runs at http://localhost:5173
-```
+The Render blueprint builds the React frontend into `client/dist` and starts a single Node.js backend. Set `VITE_SERVER_URL` to the backend’s HTTPS origin **before building the client**. Set `CLIENT_ORIGIN` on the server to the frontend’s exact origin. The backend listens on `PORT` and reports its deployed revision at `/health`. [Render blueprint](render.yaml)
 
----
-
-## Environment Variables Reference
-
-### Client (`client/.env`)
-| Variable | Description | Required | Default |
-|---|---|:---:|---|
-| `VITE_SERVER_URL` | Base URL for Socket.IO signaling and API endpoints | Yes | `http://localhost:4000` |
-
-### Server (`server/.env`)
-| Variable | Description | Required | Default |
-|---|---|:---:|---|
-| `PORT` | Port for the HTTP/WebSocket server | No | `4000` |
-| `CLIENT_ORIGIN` | Allowed CORS origin for frontend client requests | Yes | `http://localhost:5173` |
-| `ROOM_CLEANUP_INTERVAL_MS` | Sweep interval for removing inactive rooms | No | `60000` |
-| `ROOM_EMPTY_GRACE_MS` | Grace period before cleaning up empty rooms | No | `120000` |
-| `MAX_ROOMS_PER_IP_PER_HOUR` | Rate limiting for room creation per IP | No | `10` |
-
----
-
-## How It Works
-
-1. **Room Creation & Entry**:
-   - The host chooses a mode (**Study Room** or **Chat Room**) and creates an ephemeral session.
-   - The server assigns a unique code and initializes an in-memory session.
-   - Participants join by navigating directly to `/room/CODE` or entering the code on the landing page.
-2. **Real-Time Synchronization**:
-   - All room states (participants, whiteboard strokes, study notes, focus timer, chat messages) are synchronized in real-time via Socket.IO events.
-   - Reconnections preserve session state and participant identity via temporary session tokens.
-3. **P2P File Transfer (WebRTC)**:
-   - When a peer shares a file, the server coordinates WebRTC signaling (SDP offer/answer and ICE candidate exchange).
-   - Once a secure `RTCDataChannel` is established, the file is sliced into binary chunks and sent directly peer-to-peer.
-   - Direct transfers remain peer-to-peer. When a peer connection fails or no peers are available, files are uploaded to temporary server storage. Download links expire with the room; cleanup removes its upload directory. Collaborative notes/code snapshots remain in the current browser session for reconnect recovery.
-
----
-
-## Production Deployment
-
-### 1. Build the Frontend
-```bash
-cd client
-npm run build
-```
-The optimized production bundle is generated in `client/dist/`. You can deploy this directory to **Vercel**, **Cloudflare Pages**, **Netlify**, or **AWS S3 + CloudFront**.
-
-### 2. Deploy the Backend
-Deploy the `server/` directory to **Render**, **Railway**, **Fly.io**, or an **Ubuntu VPS**:
-```bash
-cd server
-npm start
-```
-
-> [!IMPORTANT]
-> **HTTPS / WSS Requirement for WebRTC**:
-> Browsers restrict WebRTC peer connections and microphone/media capabilities on non-secure origins. Ensure both your frontend and backend are served over **HTTPS** and **WSS** in production environments.
-
----
-
-## Troubleshooting
-
-- **WebRTC File Transfer Not Connecting**: Ensure your network allows UDP traffic and that both clients are served over HTTPS in production. In restricted corporate NATs/firewalls, a TURN server relay may be configured in `client/src/hooks/useWebRTCFileTransfer.js`.
-- **CORS / Socket Connection Error**: Ensure `CLIENT_ORIGIN` in `server/.env` exactly matches your frontend domain (including protocol and port, without a trailing slash).
-
----
+For a custom local setup, copy the relevant example to `.env` in the same directory. The server example includes the room cleanup interval, reconnect window, and room creation limit. [Client settings](client/.env.example) · [Server settings](server/.env.example) · [Upload limits and operational details](VERIFICATION.md)
 
 ## License
 
-This project is licensed under the ISC License.
-
-## Verification and operational limits
-
-See [VERIFICATION.md](VERIFICATION.md) for regression commands, collaboration behavior, upload limits, privacy details, and deployment requirements. Deploy frontend and backend changes together.
+ISC.
